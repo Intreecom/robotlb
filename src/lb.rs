@@ -158,6 +158,7 @@ impl LoadBalancer {
     /// The target will receive the traffic from the services.
     /// The target is identified by its IP address.
     pub fn add_target(&mut self, ip: &str) {
+        tracing::debug!("Adding target {}", ip);
         self.targets.push(ip.to_string());
     }
 

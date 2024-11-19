@@ -22,7 +22,7 @@ use error::{LBTrackerError, LBTrackerResult};
 use futures::StreamExt;
 use hcloud::apis::configuration::Configuration as HCloudConfig;
 use k8s_openapi::{
-    api::core::v1::{Node, Service},
+    api::core::v1::{Node, Pod, Service},
     serde_json::json,
 };
 use kube::{
@@ -32,7 +32,7 @@ use kube::{
 };
 use label_filter::LabelFilter;
 use lb::LoadBalancer;
-use std::{str::FromStr, sync::Arc, time::Duration};
+use std::{collections::HashSet, str::FromStr, sync::Arc, time::Duration};
 
 pub mod config;
 pub mod consts;
@@ -155,6 +155,78 @@ pub async fn reconcile_service(
     reconcile_load_balancer(lb, svc.clone(), context).await
 }
 
+/// Method to get nodes dynamically based on the pods.
+/// This method will find the nodes where the target pods are deployed.
+/// It will use the pod selector to find the pods and then get the nodes.
+async fn get_nodes_dynamically(
+    svc: &Arc<Service>,
+    context: &Arc<CurrentContext>,
+) -> LBTrackerResult<Vec<Node>> {
+    let pod_api = kube::Api::<Pod>::namespaced(
+        context.client.clone(),
+        svc.namespace()
+            .as_ref()
+            .map(String::as_str)
+            .unwrap_or_else(|| context.client.default_namespace()),
+    );
+
+    let Some(pod_selector) = svc.spec.as_ref().and_then(|spec| spec.selector.clone()) else {
+        return Err(LBTrackerError::ServiceWithoutSelector);
+    };
+
+    let label_selector = pod_selector
+        .iter()
+        .map(|(key, val)| format!("{key}={val}"))
+        .collect::<Vec<_>>()
+        .join(",");
+
+    let pods = pod_api
+        .list(&ListParams {
+            label_selector: Some(label_selector),
+            ..Default::default()
+        })
+        .await?;
+
+    let target_nodes = pods
+        .iter()
+        .map(|pod| pod.spec.clone().unwrap_or_default().node_name)
+        .flatten()
+        .collect::<HashSet<_>>();
+
+    let nodes_api = kube::Api::<Node>::all(context.client.clone());
+    let nodes = nodes_api
+        .list(&ListParams::default())
+        .await?
+        .into_iter()
+        .filter(|node| target_nodes.contains(&node.name_any()))
+        .collect::<Vec<_>>();
+
+    Ok(nodes)
+}
+
+/// Get nodes based on the node selector.
+/// This method will find the nodes based on the node selector
+/// from the service annotations.
+async fn get_nodes_by_selector(
+    svc: &Arc<Service>,
+    context: &Arc<CurrentContext>,
+) -> LBTrackerResult<Vec<Node>> {
+    let node_selector = svc
+        .annotations()
+        .get(consts::LB_NODE_SELECTOR)
+        .map(String::as_str)
+        .ok_or(LBTrackerError::ServiceWithoutSelector)?;
+    let label_filter = LabelFilter::from_str(node_selector)?;
+    let nodes_api = kube::Api::<Node>::all(context.client.clone());
+    let nodes = nodes_api
+        .list(&ListParams::default())
+        .await?
+        .into_iter()
+        .filter(|node| label_filter.check(node.labels()))
+        .collect::<Vec<_>>();
+    Ok(nodes)
+}
+
 /// Reconcile the `LoadBalancer` type of service.
 /// This function will find the nodes based on the node selector
 /// and create or update the load balancer.
@@ -163,25 +235,16 @@ pub async fn reconcile_load_balancer(
     svc: Arc<Service>,
     context: Arc<CurrentContext>,
 ) -> LBTrackerResult<Action> {
-    let label_filter = svc
-        .annotations()
-        .get(consts::LB_NODE_SELECTOR)
-        .map(String::as_str)
-        .map(LabelFilter::from_str)
-        .transpose()?
-        .unwrap_or_default();
-    let nodes_api = kube::Api::<Node>::all(context.client.clone());
-    let nodes = nodes_api
-        .list(&ListParams::default())
-        .await?
-        .into_iter()
-        .filter(|node| label_filter.check(node.labels()))
-        .collect::<Vec<_>>();
-
     let mut node_ip_type = "InternalIP";
     if lb.network_name.is_none() {
         node_ip_type = "ExternalIP";
     }
+
+    let nodes = if context.config.dynamic_node_selector {
+        get_nodes_dynamically(&svc, &context).await?
+    } else {
+        get_nodes_by_selector(&svc, &context).await?
+    };
 
     for node in nodes {
         let Some(status) = node.status else {

@@ -20,6 +20,8 @@ pub enum LBTrackerError {
     KubeError(#[from] kube::Error),
     #[error("Unknown LoadBalancing alorithm")]
     UnknownLBAlgorithm,
+    #[error("Cannot get target nodes, because the service has no selector")]
+    ServiceWithoutSelector,
 
     // HCloud API errors
     #[error("Cannot attach load balancer to a network. Reason: {0}")]

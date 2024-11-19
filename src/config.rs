@@ -7,6 +7,11 @@ pub struct OperatorConfig {
     #[arg(short = 't', long, env = "ROBOTLB_HCLOUD_TOKEN")]
     pub hcloud_token: String,
 
+    /// If this flag is enabled, the operator will try to find target nodes
+    /// based on where target pods are actually deployed.
+    #[arg(long, env = "ROBOTLB_DYNAMIC_NODE_SELECTOR", default_value = "true")]
+    pub dynamic_node_selector: bool,
+
     /// Default load balancer healthcheck retries cound.
     #[arg(long, env = "ROBOTLB_DEFAULT_LB_RETRIES", default_value = "3")]
     pub default_lb_retries: i32,
