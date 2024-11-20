@@ -7,6 +7,11 @@ pub struct OperatorConfig {
     #[arg(short = 't', long, env = "ROBOTLB_HCLOUD_TOKEN")]
     pub hcloud_token: String,
 
+    // Default network to use for load balancers.
+    // If not set, then only network from the service annotation will be used.
+    #[arg(long, env = "ROBOTLB_DEFAULT_NETWORK", default_value = None)]
+    pub default_network: Option<String>,
+
     /// If enabled, the operator will try to find target nodes based on where the target pods are actually deployed.
     /// If disabled, the operator will try to find target nodes based on the node selector.
     #[arg(long, env = "ROBOTLB_DYNAMIC_NODE_SELECTOR", default_value = "true")]

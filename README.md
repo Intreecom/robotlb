@@ -51,7 +51,7 @@ Usage: robotlb [OPTIONS] --hcloud-token <HCLOUD_TOKEN>
 
 Options:
   -t, --hcloud-token <HCLOUD_TOKEN>
-          `HCloud` API token [env: ROBOTLB_HCLOUD_TOKEN=nY1eU1iMeAd63eRhHRmubQCsRqhGGJoVNK7JmqfxG33SbJZkfdIw5xvf4vfdbQHu]
+          `HCloud` API token [env: ROBOTLB_HCLOUD_TOKEN=]
       --dynamic-node-selector
           If enabled, the operator will try to find target nodes based on where the target pods are actually deployed. If disabled, the operator will try to find target nodes based on the node selector [env: ROBOTLB_DYNAMIC_NODE_SELECTOR=]
       --default-lb-retries <DEFAULT_LB_RETRIES>
@@ -91,6 +91,9 @@ metadata:
     # Hetzner cloud network. If this annotation is missing, the operator will try to
     # assign external IPs to the load balancer if available. Otherwise, the update won't happen.
     robotlb/lb-network: "my-net"
+    # Requests specific IP address for the load balancer in the private network. If not specified, 
+    # a random one is given. This parameter does nothing in case if network is not specified.
+    robotlb/lb-private-ip: "10.10.10.10"
     # Node selector for the loadbalancer. This is only required if ROBOTLB_DYNAMIC_NODE_SELECTOR
     # is set to false. If not specified then, all nodes will be selected as LB targets by default.
     # This property helps you filter out nodes.

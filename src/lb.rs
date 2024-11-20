@@ -45,6 +45,7 @@ pub struct LoadBalancer {
     pub name: String,
     pub services: HashMap<i32, i32>,
     pub targets: Vec<String>,
+    pub private_ip: Option<String>,
 
     pub check_interval: i32,
     pub timeout: i32,
@@ -123,6 +124,7 @@ impl LoadBalancer {
         let network_name = svc
             .annotations()
             .get(consts::LB_NETWORK_LABEL_NAME)
+            .or(context.config.default_network.as_ref())
             .cloned();
 
         let name = svc
@@ -131,8 +133,14 @@ impl LoadBalancer {
             .cloned()
             .unwrap_or(svc.name_any());
 
+        let private_ip = svc
+            .annotations()
+            .get(consts::LB_PRIVATE_IP_LABEL_NAME)
+            .cloned();
+
         Ok(Self {
             name,
+            private_ip,
             balancer_type,
             check_interval,
             timeout,
@@ -413,9 +421,20 @@ impl LoadBalancer {
                 let Some(private_net_id) = private_net.network else {
                     continue;
                 };
+                // The load balancer is attached to a target network.
                 if desired_network == Some(private_net_id) {
-                    contain_desired_network = true;
-                    continue;
+                    // Specific IP was provided, we need to check if the IP is the same.
+                    if self.private_ip.is_some() {
+                        // if IPs match, we can leave everything as it is.
+                        if private_net.ip == self.private_ip {
+                            contain_desired_network = true;
+                            continue;
+                        }
+                    } else {
+                        // No specific IP was provided, we can leave everything as it is.
+                        contain_desired_network = true;
+                        continue;
+                    }
                 }
                 tracing::info!("Detaching balancer from network {}", private_net_id);
                 hcloud::apis::load_balancers_api::detach_load_balancer_from_network(
@@ -443,7 +462,7 @@ impl LoadBalancer {
                     id: hcloud_balancer.id,
                     attach_load_balancer_to_network_request: Some(
                         AttachLoadBalancerToNetworkRequest {
-                            ip: None,
+                            ip: self.private_ip.clone(),
                             network: network_id,
                         },
                     ),
@@ -542,8 +561,6 @@ impl LoadBalancer {
         if let Some(balancer) = hcloud_lb {
             return Ok(balancer);
         }
-        let network = self.get_network().await?;
-        let network_id = network.map(|n| n.id);
 
         let response = hcloud::apis::load_balancers_api::create_load_balancer(
             &self.hcloud_config,
@@ -554,7 +571,7 @@ impl LoadBalancer {
                     load_balancer_type: self.balancer_type.clone(),
                     location: Some(self.location.clone()),
                     name: self.name.clone(),
-                    network: network_id,
+                    network: None,
                     network_zone: None,
                     public_interface: Some(true),
                     services: Some(vec![]),

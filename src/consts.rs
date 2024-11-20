@@ -8,6 +8,7 @@ pub const LB_TIMEOUT_ANN_NAME: &str = "robotlb/lb-timeout";
 pub const LB_RETRIES_ANN_NAME: &str = "robotlb/lb-retries";
 pub const LB_PROXY_MODE_LABEL_NAME: &str = "robotlb/lb-proxy-mode";
 pub const LB_NETWORK_LABEL_NAME: &str = "robotlb/lb-network";
+pub const LB_PRIVATE_IP_LABEL_NAME: &str = "robotlb/lb-private-ip";
 
 pub const LB_LOCATION_LABEL_NAME: &str = "robotlb/lb-location";
 pub const LB_ALGORITHM_LABEL_NAME: &str = "robotlb/lb-algorithm";
