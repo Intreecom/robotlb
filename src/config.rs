@@ -57,7 +57,7 @@ pub struct OperatorConfig {
     )]
     pub default_lb_proxy_mode_enabled: bool,
 
-    /// Whether to enable IPv6 ingress for the load balancer. 
+    /// Whether to enable IPv6 ingress for the load balancer.
     /// If enabled, the load balancer's IPv6 will be attached to the service as an external IP along with IPv4.
     #[arg(long, env = "ROBOTLB_IPV6_INGRESS", default_value = "false")]
     pub ipv6_ingress: bool,
