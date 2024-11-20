@@ -7,8 +7,8 @@ pub struct OperatorConfig {
     #[arg(short = 't', long, env = "ROBOTLB_HCLOUD_TOKEN")]
     pub hcloud_token: String,
 
-    /// If this flag is enabled, the operator will try to find target nodes
-    /// based on where target pods are actually deployed.
+    /// If enabled, the operator will try to find target nodes based on where the target pods are actually deployed.
+    /// If disabled, the operator will try to find target nodes based on the node selector.
     #[arg(long, env = "ROBOTLB_DYNAMIC_NODE_SELECTOR", default_value = "true")]
     pub dynamic_node_selector: bool,
 
@@ -24,7 +24,7 @@ pub struct OperatorConfig {
     #[arg(long, env = "ROBOTLB_DEFAULT_LB_INTERVAL", default_value = "15")]
     pub default_lb_interval: i32,
 
-    /// Default loadction of a load balancer.
+    /// Default location of a load balancer.
     /// https://docs.hetzner.com/cloud/general/locations/
     #[arg(long, env = "ROBOTLB_DEFAULT_LB_LOCATION", default_value = "hel1")]
     pub default_lb_location: String,
@@ -57,13 +57,12 @@ pub struct OperatorConfig {
     )]
     pub default_lb_proxy_mode_enabled: bool,
 
-    /// Whether to enable IPv6 ingress for the load balancer. The default value
-    /// is `false`. If enabled, the load balancer's IPv6 will be attached to a
-    /// service as external IP along with IPv4.
+    /// Whether to enable IPv6 ingress for the load balancer. 
+    /// If enabled, the load balancer's IPv6 will be attached to the service as an external IP along with IPv4.
     #[arg(long, env = "ROBOTLB_IPV6_INGRESS", default_value = "false")]
     pub ipv6_ingress: bool,
 
-    // Log level for the operator.
+    // Log level of the operator.
     #[arg(long, env = "ROBOTLB_LOG_LEVEL", default_value = "INFO")]
     pub log_level: LevelFilter,
 }
