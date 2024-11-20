@@ -4,12 +4,23 @@ on:
   release:
     types: [released]
 
+permissions:
+  contents: read
+  packages: write
+
+
 jobs:
   release_image:
     runs-on: ubuntu-latest
-    permissions:
-      packages: write
-      contents: read
+    strategy:
+      matrix:
+        platform: 
+          - docker_name: linux/amd64
+            image_tag: amd64
+          - docker_name: linux/arm64
+            image_tag: arm64
+          - docker_name: linux/arm/v7
+            image_tag: arm7
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,16 +42,46 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64
+          platforms: ${{ matrix.platform.docker_name }}
           push: true
-          tags: ghcr.io/intreecom/robotlb:latest,ghcr.io/intreecom/robotlb:${{ github.ref_name }}
+          tags: ghcr.io/intreecom/robotlb:${{ matrix.platform.image_tag }}-latest,ghcr.io/intreecom/robotlb:${{ matrix.platform.image_tag }}-${{ github.ref_name }}
+
+  upload_manifest:
+    runs-on: ubuntu-latest
+    needs: [release_image]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Docker
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+            registry: ghcr.io
+            username: ${{ github.actor }}
+            password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create SHA manifest and push
+        run: |
+          docker manifest create \
+            ghcr.io/intreecom/robotlb:${{ github.ref_name }} \
+            --amend ghcr.io/intreecom/robotlb:amd64-${{ github.ref_name }} \
+            --amend ghcr.io/intreecom/robotlb:arm64-${{ github.ref_name }} \
+            --amend ghcr.io/intreecom/robotlb:arm7-${{ github.ref_name }}
+          docker manifest push ghcr.io/intreecom/robotlb:${{ github.ref_name }}
+      - name: Create latest manifest and push
+        run: |
+          docker manifest create \
+            ghcr.io/intreecom/robotlb:latest \
+            --amend ghcr.io/intreecom/robotlb:amd64-latest \
+            --amend ghcr.io/intreecom/robotlb:arm64-latest \
+            --amend ghcr.io/intreecom/robotlb:arm7-latest
+          docker manifest push ghcr.io/intreecom/robotlb:latest
 
   upload_helm:
     runs-on: ubuntu-latest
-    needs: [release_image]
-    permissions:
-      contents: write
-      packages: write
+    needs: [upload_manifest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions-rust-lang/setup-rust-toolchain@v1
