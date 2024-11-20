@@ -52,6 +52,8 @@ Usage: robotlb [OPTIONS] --hcloud-token <HCLOUD_TOKEN>
 Options:
   -t, --hcloud-token <HCLOUD_TOKEN>
           `HCloud` API token [env: ROBOTLB_HCLOUD_TOKEN=]
+      --default-network <DEFAULT_NETWORK>
+          Default network to use for load balancers. If not set, then only network from the service annotation will be used [env: ROBOTLB_DEFAULT_NETWORK=]
       --dynamic-node-selector
           If enabled, the operator will try to find target nodes based on where the target pods are actually deployed. If disabled, the operator will try to find target nodes based on the node selector [env: ROBOTLB_DYNAMIC_NODE_SELECTOR=]
       --default-lb-retries <DEFAULT_LB_RETRIES>
