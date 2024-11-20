@@ -91,7 +91,7 @@ metadata:
     # Hetzner cloud network. If this annotation is missing, the operator will try to
     # assign external IPs to the load balancer if available. Otherwise, the update won't happen.
     robotlb/lb-network: "my-net"
-    # Requests specific IP address for the load balancer in the private network. If not specified, 
+    # Requests specific IP address for the load balancer in the private network. If not specified,
     # a random one is given. This parameter does nothing in case if network is not specified.
     robotlb/lb-private-ip: "10.10.10.10"
     # Node selector for the loadbalancer. This is only required if ROBOTLB_DYNAMIC_NODE_SELECTOR
