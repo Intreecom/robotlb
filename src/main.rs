@@ -18,7 +18,7 @@
 
 use clap::Parser;
 use config::OperatorConfig;
-use error::{LBTrackerError, LBTrackerResult};
+use error::{RobotLBError, RobotLBResult};
 use futures::StreamExt;
 use hcloud::apis::configuration::Configuration as HCloudConfig;
 use k8s_openapi::{
@@ -46,7 +46,7 @@ pub mod lb;
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 #[tokio::main]
-async fn main() -> LBTrackerResult<()> {
+async fn main() -> RobotLBResult<()> {
     dotenvy::dotenv().ok();
     let operator_config = config::OperatorConfig::parse();
     tracing_subscriber::fmt()
@@ -80,7 +80,7 @@ async fn main() -> LBTrackerResult<()> {
                 // During reconcilation process,
                 // the controller has decided to skip the service.
                 kube::runtime::controller::Error::ReconcilerFailed(
-                    LBTrackerError::SkipService,
+                    RobotLBError::SkipService,
                     _,
                 ) => {}
                 _ => {
@@ -122,7 +122,7 @@ impl CurrentContext {
 pub async fn reconcile_service(
     svc: Arc<Service>,
     context: Arc<CurrentContext>,
-) -> LBTrackerResult<Action> {
+) -> RobotLBResult<Action> {
     let svc_type = svc
         .spec
         .as_ref()
@@ -131,7 +131,7 @@ pub async fn reconcile_service(
         .unwrap_or("ClusterIP");
     if svc_type != "LoadBalancer" {
         tracing::debug!("Service type is not LoadBalancer. Skipping...");
-        return Err(LBTrackerError::SkipService);
+        return Err(RobotLBError::SkipService);
     }
 
     tracing::info!("Starting service reconcilation");
@@ -161,7 +161,7 @@ pub async fn reconcile_service(
 async fn get_nodes_dynamically(
     svc: &Arc<Service>,
     context: &Arc<CurrentContext>,
-) -> LBTrackerResult<Vec<Node>> {
+) -> RobotLBResult<Vec<Node>> {
     let pod_api = kube::Api::<Pod>::namespaced(
         context.client.clone(),
         svc.namespace()
@@ -171,7 +171,7 @@ async fn get_nodes_dynamically(
     );
 
     let Some(pod_selector) = svc.spec.as_ref().and_then(|spec| spec.selector.clone()) else {
-        return Err(LBTrackerError::ServiceWithoutSelector);
+        return Err(RobotLBError::ServiceWithoutSelector);
     };
 
     let label_selector = pod_selector
@@ -210,12 +210,12 @@ async fn get_nodes_dynamically(
 async fn get_nodes_by_selector(
     svc: &Arc<Service>,
     context: &Arc<CurrentContext>,
-) -> LBTrackerResult<Vec<Node>> {
+) -> RobotLBResult<Vec<Node>> {
     let node_selector = svc
         .annotations()
         .get(consts::LB_NODE_SELECTOR)
         .map(String::as_str)
-        .ok_or(LBTrackerError::ServiceWithoutSelector)?;
+        .ok_or(RobotLBError::ServiceWithoutSelector)?;
     let label_filter = LabelFilter::from_str(node_selector)?;
     let nodes_api = kube::Api::<Node>::all(context.client.clone());
     let nodes = nodes_api
@@ -234,7 +234,7 @@ pub async fn reconcile_load_balancer(
     mut lb: LoadBalancer,
     svc: Arc<Service>,
     context: Arc<CurrentContext>,
-) -> LBTrackerResult<Action> {
+) -> RobotLBResult<Action> {
     let mut node_ip_type = "InternalIP";
     if lb.network_name.is_none() {
         node_ip_type = "ExternalIP";
@@ -335,9 +335,9 @@ pub async fn reconcile_load_balancer(
 
 /// Handle the error during reconcilation.
 #[allow(clippy::needless_pass_by_value)]
-fn on_error(_: Arc<Service>, error: &LBTrackerError, _context: Arc<CurrentContext>) -> Action {
+fn on_error(_: Arc<Service>, error: &RobotLBError, _context: Arc<CurrentContext>) -> Action {
     match error {
-        LBTrackerError::SkipService => Action::await_change(),
+        RobotLBError::SkipService => Action::await_change(),
         _ => Action::requeue(Duration::from_secs(30)),
     }
 }

@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, str::FromStr};
 
-use crate::error::LBTrackerError;
+use crate::error::RobotLBError;
 
 /// Enum of all possible rules for label filtering.
 #[derive(Debug, Clone)]
@@ -57,7 +57,7 @@ impl LabelFilter {
 /// The string should be in the following format:
 /// `key=value,key!=value,key,!key`
 impl FromStr for LabelFilter {
-    type Err = LBTrackerError;
+    type Err = RobotLBError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut rules = Vec::new();
@@ -83,7 +83,7 @@ impl FromStr for LabelFilter {
                     }
                     rules.push(Rule::Equal(key.to_string(), value.to_string()));
                 }
-                _ => return Err(LBTrackerError::InvalidNodeFilter(rule.to_string())),
+                _ => return Err(RobotLBError::InvalidNodeFilter(rule.to_string())),
             }
         }
         Ok(Self { rules })

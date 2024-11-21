@@ -1,9 +1,9 @@
 use thiserror::Error;
 
-pub type LBTrackerResult<T> = Result<T, LBTrackerError>;
+pub type RobotLBResult<T> = Result<T, RobotLBError>;
 
 #[derive(Debug, Error)]
-pub enum LBTrackerError {
+pub enum RobotLBError {
     #[error("Cannot parse node filter: {0}")]
     InvalidNodeFilter(String),
     #[error("Unsupported service type")]

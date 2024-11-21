@@ -22,7 +22,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use crate::{
     consts,
-    error::{LBTrackerError, LBTrackerResult},
+    error::{RobotLBError, RobotLBResult},
     CurrentContext,
 };
 
@@ -67,7 +67,7 @@ impl LoadBalancer {
     /// from the service annotations and the context.
     /// If some of the required information is missing, the method will
     /// try to use the default values from the context.
-    pub fn try_from_svc(svc: &Service, context: &CurrentContext) -> LBTrackerResult<Self> {
+    pub fn try_from_svc(svc: &Service, context: &CurrentContext) -> RobotLBResult<Self> {
         let retries = svc
             .annotations()
             .get(consts::LB_RETRIES_ANN_NAME)
@@ -172,7 +172,7 @@ impl LoadBalancer {
 
     /// Reconcile the load balancer to match the desired configuration.
     #[tracing::instrument(skip(self), fields(lb_name=self.name))]
-    pub async fn reconcile(&self) -> LBTrackerResult<hcloud::models::LoadBalancer> {
+    pub async fn reconcile(&self) -> RobotLBResult<hcloud::models::LoadBalancer> {
         let hcloud_balancer = self.get_or_create_hcloud_lb().await?;
         self.reconcile_algorithm(&hcloud_balancer).await?;
         self.reconcile_lb_type(&hcloud_balancer).await?;
@@ -189,7 +189,7 @@ impl LoadBalancer {
     async fn reconcile_services(
         &self,
         hcloud_balancer: &hcloud::models::LoadBalancer,
-    ) -> LBTrackerResult<()> {
+    ) -> RobotLBResult<()> {
         for service in &hcloud_balancer.services {
             // Here we check that all the services are configured correctly.
             // If the service is not configured correctly, we update it.
@@ -299,7 +299,7 @@ impl LoadBalancer {
     async fn reconcile_targets(
         &self,
         hcloud_balancer: &hcloud::models::LoadBalancer,
-    ) -> LBTrackerResult<()> {
+    ) -> RobotLBResult<()> {
         for target in &hcloud_balancer.targets {
             let Some(target_ip) = target.ip.clone() else {
                 continue;
@@ -351,7 +351,7 @@ impl LoadBalancer {
     async fn reconcile_algorithm(
         &self,
         hcloud_balancer: &hcloud::models::LoadBalancer,
-    ) -> LBTrackerResult<()> {
+    ) -> RobotLBResult<()> {
         if *hcloud_balancer.algorithm == self.algorithm.clone().into() {
             return Ok(());
         }
@@ -375,7 +375,7 @@ impl LoadBalancer {
     async fn reconcile_lb_type(
         &self,
         hcloud_balancer: &hcloud::models::LoadBalancer,
-    ) -> LBTrackerResult<()> {
+    ) -> RobotLBResult<()> {
         if hcloud_balancer.load_balancer_type.name == self.balancer_type {
             return Ok(());
         }
@@ -405,7 +405,7 @@ impl LoadBalancer {
     async fn reconcile_network(
         &self,
         hcloud_balancer: &hcloud::models::LoadBalancer,
-    ) -> LBTrackerResult<()> {
+    ) -> RobotLBResult<()> {
         // If the network name is not provided, and laod balancer is not attached to any network,
         // we can skip this step.
         if self.network_name.is_none() && hcloud_balancer.private_net.is_empty() {
@@ -476,7 +476,7 @@ impl LoadBalancer {
     /// Cleanup the load balancer.
     /// This method will remove all the services and targets from the
     /// load balancer.
-    pub async fn cleanup(&self) -> LBTrackerResult<()> {
+    pub async fn cleanup(&self) -> RobotLBResult<()> {
         let Some(hcloud_balancer) = self.get_hcloud_lb().await? else {
             return Ok(());
         };
@@ -529,7 +529,7 @@ impl LoadBalancer {
     ///
     /// The method might return an error if the load balancer is not found
     /// or if there are multiple load balancers with the same name.
-    async fn get_hcloud_lb(&self) -> LBTrackerResult<Option<hcloud::models::LoadBalancer>> {
+    async fn get_hcloud_lb(&self) -> RobotLBResult<Option<hcloud::models::LoadBalancer>> {
         let hcloud_balancers = hcloud::apis::load_balancers_api::list_load_balancers(
             &self.hcloud_config,
             ListLoadBalancersParams {
@@ -543,7 +543,7 @@ impl LoadBalancer {
                 "Found more than one balancer with name {}, skipping",
                 self.name
             );
-            return Err(LBTrackerError::SkipService);
+            return Err(RobotLBError::SkipService);
         }
         // Here we just return the first load balancer,
         // if it exists, otherwise we return None
@@ -556,7 +556,7 @@ impl LoadBalancer {
     /// specified in the `LoadBalancer` struct. If the load balancer
     /// is not found, the method will create a new load balancer
     /// with the specified configuration in service's annotations.
-    async fn get_or_create_hcloud_lb(&self) -> LBTrackerResult<hcloud::models::LoadBalancer> {
+    async fn get_or_create_hcloud_lb(&self) -> RobotLBResult<hcloud::models::LoadBalancer> {
         let hcloud_lb = self.get_hcloud_lb().await?;
         if let Some(balancer) = hcloud_lb {
             return Ok(balancer);
@@ -582,7 +582,7 @@ impl LoadBalancer {
         .await;
         if let Err(e) = response {
             tracing::error!("Failed to create load balancer: {:?}", e);
-            return Err(LBTrackerError::HCloudError(format!(
+            return Err(RobotLBError::HCloudError(format!(
                 "Failed to create load balancer: {:?}",
                 e
             )));
@@ -596,7 +596,7 @@ impl LoadBalancer {
     /// specified in the `LoadBalancer` struct. It returns `None` only
     /// in case the network name is not provided. If the network was not found,
     /// the error is returned.
-    async fn get_network(&self) -> LBTrackerResult<Option<hcloud::models::Network>> {
+    async fn get_network(&self) -> RobotLBResult<Option<hcloud::models::Network>> {
         let Some(network_name) = self.network_name.clone() else {
             return Ok(None);
         };
@@ -614,14 +614,14 @@ impl LoadBalancer {
                 "Found more than one network with name {}, skipping",
                 network_name
             );
-            return Err(LBTrackerError::HCloudError(format!(
+            return Err(RobotLBError::HCloudError(format!(
                 "Found more than one network with name {}",
                 network_name,
             )));
         }
         if response.networks.is_empty() {
             tracing::warn!("Network with name {} not found", network_name);
-            return Err(LBTrackerError::HCloudError(format!(
+            return Err(RobotLBError::HCloudError(format!(
                 "Network with name {} not found",
                 network_name,
             )));
@@ -632,12 +632,12 @@ impl LoadBalancer {
 }
 
 impl FromStr for LBAlgorithm {
-    type Err = LBTrackerError;
+    type Err = RobotLBError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "round-robin" => Ok(Self::RoundRobin),
             "least-connections" => Ok(Self::LeastConnections),
-            _ => Err(LBTrackerError::UnknownLBAlgorithm),
+            _ => Err(RobotLBError::UnknownLBAlgorithm),
         }
     }
 }

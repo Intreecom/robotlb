@@ -6,15 +6,15 @@ use kube::{
 
 use crate::{
     consts,
-    error::{LBTrackerError, LBTrackerResult},
+    error::{RobotLBError, RobotLBResult},
 };
 
 /// Add finalizer to the service.
 /// This will prevent the service from being deleted.
-pub async fn add(client: Client, svc: &Service) -> LBTrackerResult<()> {
+pub async fn add(client: Client, svc: &Service) -> RobotLBResult<()> {
     let api = Api::<Service>::namespaced(
         client,
-        svc.namespace().ok_or(LBTrackerError::SkipService)?.as_str(),
+        svc.namespace().ok_or(RobotLBError::SkipService)?.as_str(),
     );
     let patch = json!({
         "metadata": {
@@ -46,10 +46,10 @@ pub fn check(service: &Service) -> bool {
 /// This will allow the service to be deleted.
 ///
 /// if service does not have the finalizer, this function will do nothing.
-pub async fn remove(client: Client, svc: &Service) -> LBTrackerResult<()> {
+pub async fn remove(client: Client, svc: &Service) -> RobotLBResult<()> {
     let api = Api::<Service>::namespaced(
         client,
-        svc.namespace().ok_or(LBTrackerError::SkipService)?.as_str(),
+        svc.namespace().ok_or(RobotLBError::SkipService)?.as_str(),
     );
     let finalizers = svc
         .finalizers()
