@@ -34,11 +34,8 @@ serviceAccount:
     resources: [services, services/status]
     verbs: [get, list, patch, update, watch]
   - apiGroups: [""]
-    resources: [nodes]
+    resources: [nodes, pods]
     verbs: [get, list, watch]
-  # - apiGroups: ["apps/v1"]
-  #   resources: ["deployments"]
-  #   verbs: ["get", "list"]
 
 podAnnotations: {}
 podLabels: {}
