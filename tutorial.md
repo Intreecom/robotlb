@@ -353,7 +353,7 @@ vim /etc/netplan/01-netcfg.yaml
 
 Here create a new VLAN object inside of the network object.
 
-```
+```yaml
 network:
     ... # here goes some default network configuration. Don't touch it.
 
@@ -458,7 +458,7 @@ After service LB is deployed, we can deploy the NGINX ingress controller to veri
 
 Here are the values for helm, that I'm going to use for nginx.
 
-```bash
+```yaml
 # nginx-values.yaml
 controller:
   kind: DaemonSet
