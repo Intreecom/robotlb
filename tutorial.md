@@ -12,7 +12,7 @@ but only responsible for managing internal Kubernetes jobs.
 If you want to go full metal, order servers on the robot. But since these servers won't handle any application workloads, it's fine to deploy not-so-powerful nodes as control planes. 
 
 Let's start by ordering 5 servers. 3 servers will be used as control planes, 1 as a load balancer for Kubernetes API, and 1 as a VPN to access all these services.
-You can buy 5 CAX11s which should be sufficient for small and medium-sized clusters and will cost you roughly 13 EUR.
+You can buy 5 CAX11s which should be sufficient for small and medium-sized clusters and will cost you about 16 EUR.
 
 ### Setup users
 
