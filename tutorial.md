@@ -97,7 +97,7 @@ It will generate public and private keys for the server.
 Then you will need to do the same thing for any client that will be connecting to your WireGuard server.
 Create a file `/etc/wireguard/wg0.conf` with the following contents (replacing keys and interface names):
 
-```conf
+```ini
 [Interface]
 # This is an address within Wireguard's own network.
 Address    = 10.4.0.1/24
@@ -133,7 +133,7 @@ systemctl enable --now wg-quick@wg0
 
 Now to configure your client, create a file `/etc/wireguard/wg0.conf` on your machine with the following contents:
 
-```conf
+```ini
 [Interface]
 # This is an IP of your client in Wireguard's network, it should match AllowedIP on the server side.
 Address    = 10.4.0.2/32
@@ -436,9 +436,9 @@ join_agent "$LB_IP" "$TOKEN" "10.10.255.1"
 join_agent "$LB_IP" "$TOKEN" "10.10.255.2"
 ```
 
-# Deploying RobotLB
+### Deploying RobotLB
 
-Once the cluster is ready, we can deploy our RobotLB.
+Once the cluster is ready, we can deploy our RobotLB. Before that, create an hcloud token as shown here: https://docs.hetzner.com/cloud/api/getting-started/generating-api-token/.
 
 ```bash
 helm install robotlb  \
