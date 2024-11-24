@@ -9,7 +9,7 @@ but only responsible for managing internal Kubernetes jobs.
 
 ### Cloud servers
 
-If you want to go full metal, order servers on the robot. But since these servers won't handle any application workloads, it's fine to deploy not-so-powerful nodes as control planes. 
+If you want to go full metal, order servers on the robot. But since these servers won't handle any application workloads, it's fine to deploy not-so-powerful nodes as control planes.
 
 Let's start by ordering 5 servers. 3 servers will be used as control planes, 1 as a load balancer for Kubernetes API, and 1 as a VPN to access all these services.
 You can buy 5 CAX11s which should be sufficient for small and medium-sized clusters and will cost you about 16 EUR.
@@ -67,21 +67,21 @@ $ ip addr
     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
     inet 127.0.0.1/8 scope host lo
        valid_lft forever preferred_lft forever
-    inet6 ::1/128 scope host noprefixroute 
+    inet6 ::1/128 scope host noprefixroute
        valid_lft forever preferred_lft forever
 2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
     link/ether 96:00:03:df:49:47 brd ff:ff:ff:ff:ff:ff
     inet 125.111.108.208/32 metric 100 scope global dynamic eth0
        valid_lft 82754sec preferred_lft 82754sec
-    inet6 2a01:4f9:c012:dd8::1/64 scope global 
+    inet6 2a01:4f9:c012:dd8::1/64 scope global
        valid_lft forever preferred_lft forever
-    inet6 fe80::9400:3ff:fedf:4947/64 scope link 
+    inet6 fe80::9400:3ff:fedf:4947/64 scope link
        valid_lft forever preferred_lft forever
 3: enp7s0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1450 qdisc fq_codel state UP group default qlen 1000
     link/ether 86:00:00:e9:6b:9b brd ff:ff:ff:ff:ff:ff
     inet 10.10.1.2/32 brd 10.0.0.2 scope global dynamic enp7s0
        valid_lft 82759sec preferred_lft 71959sec
-    inet6 fe80::8400:ff:fee9:6b9b/64 scope link 
+    inet6 fe80::8400:ff:fee9:6b9b/64 scope link
        valid_lft forever preferred_lft forever
 ```
 
@@ -169,13 +169,13 @@ If it works, you are ready to proceed.
 
 We don't want our nodes to be accessible from outside. To do so, we set a label on all our cloud servers like `k8s`.
 
-Then let's create a firewall with no rules and apply it to all servers with the label we created. In my case, it will be `k8s`. 
+Then let's create a firewall with no rules and apply it to all servers with the label we created. In my case, it will be `k8s`.
 
 ### Kube API Load balancing
 
 To access Kubernetes API you don't want to send requests to a particular server, because if it goes down, you will have to choose the next server to connect to yourself. To fix this issue we will deploy a small load balancer that will be watching over our control-panel nodes and we will be using it as an entry point for our Kubernetes cluster.
 
-My LoadBalancer server has IP `10.10.1.4`. 
+My LoadBalancer server has IP `10.10.1.4`.
 
 ```bash
 ssh root@10.10.1.4
@@ -360,7 +360,7 @@ network:
     vlans:
         enp6s0.4000:  # You can name it anyway, but please make the same name for all your servers in this VLAN.
           id: 4000    # This is a VLAN id that was chosen when creating vSwitch.
-          link: enp6s0  # Name of the physical interface. Typically you will have a similar name. 
+          link: enp6s0  # Name of the physical interface. Typically you will have a similar name.
                         # Check all available interfaces by running `ip addr`
           mtu: 1400  # Don't forget to set it, otherwise some packets might mess up.
           addresses:
@@ -384,6 +384,11 @@ Then do the same thing for the second agent server replacing its address with th
 By the way, if you want to get more info about how the connection between the cloud network and vSwitch works, you can follow this tutorial:
 https://docs.hetzner.com/cloud/networks/connect-dedi-vswitch/
 
+### Firewall
+
+Once robot servers are accessible from the private network, we can hide them with the firewall. I would recommend
+you to only hide ports that we don't want to expose, because of possible DNS issues.
+
 ### Deploying agents
 
 Finally, we got to a part where we started deploying agent nodes. To do so, we will use another bash script.
@@ -397,7 +402,7 @@ I will create a user `k3s` as I have done for control planes, but you can use `r
 export K3S_USER="k3s"
 # SSH key to use during the installation.
 export SSH_KEY="<your ssh key>"
-# Here's a main server, we will use it to get TOKEN for joining 
+# Here's a main server, we will use it to get TOKEN for joining
 # to the cluster.
 export MAIN_SERVER_IP="10.10.1.1"
 # Load balancer IP, which will be used as the server IP
@@ -421,7 +426,7 @@ function join_agent(){
   k3sup join \
     --ip "$IP" \
     --user "$K3S_USER" \
-    --k3s-extra-args "$K3S_EXTRA_ARGS --node-ip=$IP" \ 
+    --k3s-extra-args "$K3S_EXTRA_ARGS --node-ip=$IP" \
     --server-ip "$SERVER_IP" \
     --server-user "$K3S_USER" \
     --ssh-key "$SSH_KEY" \
@@ -449,7 +454,7 @@ helm install robotlb  \
     --wait
 ```
 
-After service LB is deployed, we can deploy the NGINX ingress controller to verify installation. I will set it up as a `DaemonSet` so it will be deployed on all agent nodes. 
+After service LB is deployed, we can deploy the NGINX ingress controller to verify installation. I will set it up as a `DaemonSet` so it will be deployed on all agent nodes.
 
 Here are the values for helm, that I'm going to use for nginx.
 
