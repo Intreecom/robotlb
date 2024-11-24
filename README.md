@@ -4,6 +4,8 @@ This project is useful when you've deployed a bare-metal Kubernetes cluster on H
 
 This small operator integrates them together, allowing you to use the `LoadBalancer` service type.
 
+You can follow the [TUTORIAL.md](./tutorial.md) to see how to set up a cluster using RobotLB from scratch.
+
 ## Prerequisites
 
 Before using this operator, make sure:
