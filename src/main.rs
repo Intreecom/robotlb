@@ -134,6 +134,17 @@ pub async fn reconcile_service(
         return Err(RobotLBError::SkipService);
     }
 
+    let lb_type = svc
+        .spec
+        .as_ref()
+        .and_then(|s| s.load_balancer_class.as_ref())
+        .map(String::as_str)
+        .unwrap_or(consts::ROBOTLB_LB_CLASS);
+    if lb_type != consts::ROBOTLB_LB_CLASS {
+        tracing::debug!("Load balancer class is not robotlb. Skipping...");
+        return Err(RobotLBError::SkipService);
+    }
+
     tracing::info!("Starting service reconcilation");
 
     let lb = LoadBalancer::try_from_svc(&svc, &context)?;
