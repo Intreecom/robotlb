@@ -23,3 +23,4 @@ pub const DEFAULT_LB_ALGORITHM: &str = "least-connections";
 pub const DEFAULT_LB_BALANCER_TYPE: &str = "lb11";
 
 pub const FINALIZER_NAME: &str = "robotlb/finalizer";
+pub const ROBOTLB_LB_CLASS: &str = "robotlb";
