@@ -488,3 +488,116 @@ helm install ingress-nginx \
 ```
 
 Once the nginx is deployed, verify that the load-balancer is created on Hetzner cloud console. And check that external-ip for the service of type LoadBalancer is an actual public IP of a cloud loadbalancer.
+
+### Alternative: Using Gateway API
+
+As an alternative to the traditional Ingress controller approach, you can use the Kubernetes Gateway API which provides more advanced routing capabilities and a cleaner separation of concerns.
+
+#### Install Gateway API CRDs
+
+First, install the Gateway API CRDs:
+
+```bash
+# For standard features (Gateway, HTTPRoute)
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
+
+# For experimental features (TCPRoute, UDPRoute)
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/experimental-install.yaml
+```
+
+#### Create a Gateway
+
+Create a Gateway resource that will provision the Hetzner load balancer:
+
+```yaml
+# gateway.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: robotlb-gateway
+  namespace: default
+  annotations:
+    robotlb/lb-network: "<name of your cloud network>"
+    robotlb/balancer-type: "lb11"
+    robotlb/lb-algorithm: "least-connections"
+spec:
+  gatewayClassName: robotlb
+  listeners:
+  - name: http
+    protocol: HTTP
+    port: 80
+  - name: https
+    protocol: HTTPS
+    port: 443
+```
+
+Apply the Gateway:
+
+```bash
+kubectl apply -f gateway.yaml
+```
+
+RobotLB will provision a Hetzner Cloud load balancer and update the Gateway status with the load balancer's IP address.
+
+#### Create HTTPRoutes for your applications
+
+Now you can create HTTPRoute resources to route traffic to your services:
+
+```yaml
+# app-route.yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: my-app-route
+  namespace: default
+spec:
+  parentRefs:
+  - name: robotlb-gateway
+  hostnames:
+  - "myapp.example.com"
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - name: my-app-service
+      port: 8080
+```
+
+Apply the route:
+
+```bash
+kubectl apply -f app-route.yaml
+```
+
+#### Benefits of Gateway API over Ingress
+
+- **Advanced Routing**: Header-based routing, traffic splitting, redirects, and more
+- **Multiple Protocols**: Support for HTTP, HTTPS, TCP, gRPC, and UDP
+- **Role-Oriented**: Infrastructure team manages Gateways, app teams manage Routes
+- **Type-Safe API**: Rich, strongly-typed API without annotation sprawl
+- **Future-Proof**: The future of Kubernetes traffic management
+
+#### Verify the setup
+
+Check that the Gateway has been provisioned:
+
+```bash
+kubectl get gateway robotlb-gateway
+```
+
+You should see the Gateway with an IP address in the status:
+
+```
+NAME               CLASS     ADDRESS         READY   AGE
+robotlb-gateway    robotlb   1.2.3.4        True    2m
+```
+
+Check that your HTTPRoute is accepted:
+
+```bash
+kubectl get httproute my-app-route
+```
+
+The load balancer will automatically discover the backend pods and configure the appropriate targets based on where your application pods are running.

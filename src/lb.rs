@@ -32,7 +32,7 @@ pub struct LBService {
     pub target_port: i32,
 }
 
-enum LBAlgorithm {
+pub enum LBAlgorithm {
     RoundRobin,
     LeastConnections,
 }

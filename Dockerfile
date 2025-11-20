@@ -1,4 +1,4 @@
-FROM rust:1.82-bookworm AS builder
+FROM rust:1.87-bookworm AS builder
 
 RUN apt update && apt-get install -y pkg-config libjemalloc-dev libssl-dev && apt-get clean
 

@@ -20,6 +20,11 @@ use clap::Parser;
 use config::OperatorConfig;
 use error::{RobotLBError, RobotLBResult};
 use futures::StreamExt;
+use gateway::GatewayLoadBalancer;
+use gateway_api::apis::{
+    experimental::tcproutes::TCPRoute,
+    standard::{gateways::Gateway, httproutes::HTTPRoute},
+};
 use hcloud::apis::configuration::Configuration as HCloudConfig;
 use k8s_openapi::{
     api::core::v1::{Node, Pod, Service},
@@ -38,8 +43,10 @@ pub mod config;
 pub mod consts;
 pub mod error;
 pub mod finalizers;
+pub mod gateway;
 pub mod label_filter;
 pub mod lb;
+pub mod routes;
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -59,26 +66,25 @@ async fn main() -> RobotLBResult<()> {
     tracing::info!("Starting robotlb operator v{}", env!("CARGO_PKG_VERSION"));
     let kube_client = kube::Client::try_default().await?;
     tracing::info!("Kube client is connected");
-    watcher::Config::default();
+
     let context = Arc::new(CurrentContext::new(
         kube_client.clone(),
         operator_config.clone(),
         hcloud_conf,
     ));
-    tracing::info!("Starting the controller");
-    Controller::new(
-        kube::Api::<Service>::all(kube_client),
+
+    // Create Service controller
+    let service_controller = Controller::new(
+        kube::Api::<Service>::all(kube_client.clone()),
         watcher::Config::default(),
     )
-    .run(reconcile_service, on_error, context)
+    .run(reconcile_service, on_service_error, context.clone())
     .for_each(|reconcilation_result| async move {
         match reconcilation_result {
             Ok((service, _action)) => {
-                tracing::info!("Reconcilation of a service {} was successful", service.name);
+                tracing::info!("Reconcilation of service {} was successful", service.name);
             }
             Err(err) => match err {
-                // During reconcilation process,
-                // the controller has decided to skip the service.
                 kube::runtime::controller::Error::ReconcilerFailed(
                     RobotLBError::SkipService,
                     _,
@@ -88,8 +94,43 @@ async fn main() -> RobotLBResult<()> {
                 }
             },
         }
-    })
-    .await;
+    });
+
+    // Create Gateway controller
+    let gateway_controller = Controller::new(
+        kube::Api::<Gateway>::all(kube_client.clone()),
+        watcher::Config::default(),
+    )
+    .run(reconcile_gateway, on_gateway_error, context.clone())
+    .for_each(|reconcilation_result| async move {
+        match reconcilation_result {
+            Ok((gateway, _action)) => {
+                tracing::info!("Reconcilation of gateway {} was successful", gateway.name);
+            }
+            Err(err) => match err {
+                kube::runtime::controller::Error::ReconcilerFailed(
+                    RobotLBError::SkipGateway,
+                    _,
+                ) => {}
+                _ => {
+                    tracing::error!("Error reconciling gateway: {:#?}", err);
+                }
+            },
+        }
+    });
+
+    tracing::info!("Starting Service and Gateway controllers");
+
+    // Run both controllers concurrently
+    tokio::select! {
+        _ = service_controller => {
+            tracing::error!("Service controller stopped unexpectedly");
+        }
+        _ = gateway_controller => {
+            tracing::error!("Gateway controller stopped unexpectedly");
+        }
+    }
+
     Ok(())
 }
 
@@ -344,11 +385,243 @@ pub async fn reconcile_load_balancer(
     Ok(Action::requeue(Duration::from_secs(30)))
 }
 
-/// Handle the error during reconcilation.
+/// Reconcile the Gateway resource.
+/// This function is called by the controller for each Gateway.
+/// It will create or update the load balancer based on the Gateway and its Routes.
+/// If the Gateway is being deleted, it will clean up the resources.
+#[tracing::instrument(skip(gateway,context), fields(gateway=gateway.name_any()))]
+pub async fn reconcile_gateway(
+    gateway: Arc<Gateway>,
+    context: Arc<CurrentContext>,
+) -> RobotLBResult<Action> {
+    // Check if this Gateway uses our GatewayClass
+    let gateway_class = gateway
+        .spec
+        .gateway_class_name
+        .as_str();
+
+    if gateway_class != consts::GATEWAY_CLASS_NAME {
+        tracing::debug!(
+            "Gateway class is not {}. Skipping...",
+            consts::GATEWAY_CLASS_NAME
+        );
+        return Err(RobotLBError::SkipGateway);
+    }
+
+    tracing::info!("Starting gateway reconciliation");
+
+    let mut lb = GatewayLoadBalancer::try_from_gateway(&gateway, &context)?;
+
+    // If the Gateway is being deleted, we need to clean up the resources.
+    if gateway.metadata.deletion_timestamp.is_some() {
+        tracing::info!("Gateway deletion detected. Cleaning up resources.");
+        lb.cleanup().await?;
+        finalizers::remove_gateway(context.client.clone(), &gateway).await?;
+        return Ok(Action::await_change());
+    }
+
+    // Add finalizer if it's not there yet.
+    if !finalizers::check_gateway(&gateway) {
+        finalizers::add_gateway(context.client.clone(), &gateway).await?;
+    }
+
+    // Extract listeners from Gateway spec
+    let listeners = &gateway.spec.listeners;
+
+    let mut listener_ports = Vec::new();
+    for listener in listeners {
+        let port = listener.port as i32;
+        let protocol = listener.protocol.as_str();
+
+        // For now, we only support TCP and HTTP (HTTP uses TCP)
+        if protocol != "TCP" && protocol != "HTTP" && protocol != "HTTPS" {
+            tracing::warn!("Protocol {} is not supported. Skipping listener...", protocol);
+            continue;
+        }
+
+        listener_ports.push(port);
+    }
+
+    if listener_ports.is_empty() {
+        tracing::warn!("No supported listeners found in Gateway");
+        return Err(RobotLBError::GatewayWithoutListeners);
+    }
+
+    // Find all HTTPRoute and TCPRoute resources that reference this Gateway
+    let gateway_name = gateway.name_any();
+    let gateway_namespace = gateway
+        .namespace()
+        .ok_or(RobotLBError::SkipGateway)?;
+
+    let mut all_backend_services = Vec::new();
+
+    // Check HTTPRoute resources
+    let http_routes_api = kube::Api::<HTTPRoute>::all(context.client.clone());
+    let http_routes = http_routes_api.list(&ListParams::default()).await?;
+
+    for http_route in http_routes {
+        match routes::extract_http_route_backends(&http_route, &gateway_name, &gateway_namespace)
+        {
+            Ok(backends) => all_backend_services.extend(backends),
+            Err(e) => {
+                tracing::warn!("Failed to extract backends from HTTPRoute: {}", e);
+            }
+        }
+    }
+
+    // Check TCPRoute resources
+    let tcp_routes_api = kube::Api::<TCPRoute>::all(context.client.clone());
+    let tcp_routes = tcp_routes_api.list(&ListParams::default()).await?;
+
+    for tcp_route in tcp_routes {
+        match routes::extract_tcp_route_backends(&tcp_route, &gateway_name, &gateway_namespace) {
+            Ok(backends) => all_backend_services.extend(backends),
+            Err(e) => {
+                tracing::warn!("Failed to extract backends from TCPRoute: {}", e);
+            }
+        }
+    }
+
+    // If we have routes with backends, use them to determine nodes
+    // Otherwise, we'll just provision the LB without targets (unusual but valid)
+    if !all_backend_services.is_empty() {
+        let backend_services = routes::get_backend_services(&all_backend_services, &context).await?;
+
+        // Determine node IP type based on network configuration
+        let mut node_ip_type = "InternalIP";
+        if lb.lb.network_name.is_none() {
+            node_ip_type = "ExternalIP";
+        }
+
+        // For each backend service, find the nodes where its pods are running
+        let mut target_nodes = Vec::new();
+
+        for service in backend_services {
+            let nodes = if context.config.dynamic_node_selector {
+                get_nodes_for_service(&service, Arc::clone(&context)).await?
+            } else {
+                get_nodes_by_selector_for_service(&service, Arc::clone(&context)).await?
+            };
+
+            target_nodes.extend(nodes);
+        }
+
+        // Deduplicate nodes by name
+        target_nodes.sort_by(|a, b| a.name_any().cmp(&b.name_any()));
+        target_nodes.dedup_by(|a, b| a.name_any() == b.name_any());
+
+        // Extract IPs from nodes and add as targets
+        for node in target_nodes {
+            let Some(status) = node.status else {
+                continue;
+            };
+            let Some(addresses) = status.addresses else {
+                continue;
+            };
+            for addr in addresses {
+                if addr.type_ == node_ip_type {
+                    lb.add_target(&addr.address);
+                }
+            }
+        }
+
+        // Determine port mappings from routes and listeners
+        let port_mappings = routes::determine_port_mappings(&listener_ports, &all_backend_services);
+
+        for (listen_port, target_port) in port_mappings {
+            lb.add_service(listen_port, target_port);
+        }
+    } else {
+        // No routes found, provision LB with listeners but no backends
+        tracing::info!("No routes found for Gateway, provisioning LB with listeners only");
+        for listener_port in listener_ports {
+            // Use the listener port as both listen and target port
+            lb.add_service(listener_port, listener_port);
+        }
+    }
+
+    // Reconcile the load balancer
+    let hcloud_lb = lb.reconcile().await?;
+
+    // Update Gateway status with load balancer addresses
+    let gateway_api = kube::Api::<Gateway>::namespaced(
+        context.client.clone(),
+        gateway
+            .namespace()
+            .unwrap_or_else(|| context.client.default_namespace().to_string())
+            .as_str(),
+    );
+
+    let mut addresses = vec![];
+
+    let ipv4 = hcloud_lb.public_net.ipv4.ip.flatten();
+    let ipv6 = hcloud_lb.public_net.ipv6.ip.flatten();
+
+    if let Some(ipv4) = &ipv4 {
+        addresses.push(json!({
+            "type": "IPAddress",
+            "value": ipv4
+        }));
+    }
+
+    if context.config.ipv6_ingress {
+        if let Some(ipv6) = &ipv6 {
+            addresses.push(json!({
+                "type": "IPAddress",
+                "value": ipv6
+            }));
+        }
+    }
+
+    if !addresses.is_empty() {
+        gateway_api
+            .patch_status(
+                gateway.name_any().as_str(),
+                &PatchParams::default(),
+                &kube::api::Patch::Merge(json!({
+                    "status": {
+                        "addresses": addresses
+                    }
+                })),
+            )
+            .await?;
+    }
+
+    Ok(Action::requeue(Duration::from_secs(30)))
+}
+
+/// Get nodes where a specific service's pods are running (dynamic mode).
+async fn get_nodes_for_service(
+    service: &Service,
+    context: Arc<CurrentContext>,
+) -> RobotLBResult<Vec<Node>> {
+    let svc_arc = Arc::new(service.clone());
+    get_nodes_dynamically(&svc_arc, &context).await
+}
+
+/// Get nodes based on service's node selector annotation (static mode).
+async fn get_nodes_by_selector_for_service(
+    service: &Service,
+    context: Arc<CurrentContext>,
+) -> RobotLBResult<Vec<Node>> {
+    let svc_arc = Arc::new(service.clone());
+    get_nodes_by_selector(&svc_arc, &context).await
+}
+
+/// Handle errors during service reconciliation.
 #[allow(clippy::needless_pass_by_value)]
-fn on_error(_: Arc<Service>, error: &RobotLBError, _context: Arc<CurrentContext>) -> Action {
+fn on_service_error(_: Arc<Service>, error: &RobotLBError, _context: Arc<CurrentContext>) -> Action {
     match error {
         RobotLBError::SkipService => Action::await_change(),
+        _ => Action::requeue(Duration::from_secs(30)),
+    }
+}
+
+/// Handle errors during gateway reconciliation.
+#[allow(clippy::needless_pass_by_value)]
+fn on_gateway_error(_: Arc<Gateway>, error: &RobotLBError, _context: Arc<CurrentContext>) -> Action {
+    match error {
+        RobotLBError::SkipGateway => Action::await_change(),
         _ => Action::requeue(Duration::from_secs(30)),
     }
 }

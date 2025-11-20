@@ -23,6 +23,22 @@ pub enum RobotLBError {
     #[error("Cannot get target nodes, because the service has no selector")]
     ServiceWithoutSelector,
 
+    // Gateway API errors
+    #[error("Gateway resource skipped")]
+    SkipGateway,
+    #[error("Gateway has no listeners configured")]
+    GatewayWithoutListeners,
+    #[error("Unsupported protocol in Gateway listener: {0}")]
+    UnsupportedGatewayProtocol(String),
+    #[error("Route has no parent references")]
+    RouteWithoutParentRefs,
+    #[error("Route has no backend references")]
+    RouteWithoutBackendRefs,
+    #[error("Cannot find Gateway for Route")]
+    GatewayNotFound,
+    #[error("Unsupported route kind: {0}")]
+    UnsupportedRouteKind(String),
+
     // HCloud API errors
     #[error("Cannot attach load balancer to a network. Reason: {0}")]
     HCloudLBAttachToNetworkError(

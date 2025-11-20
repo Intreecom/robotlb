@@ -2,7 +2,9 @@
 
 This project is useful when you've deployed a bare-metal Kubernetes cluster on Hetzner Robot and want to use Hetzner's cloud load balancer.
 
-This small operator integrates them together, allowing you to use the `LoadBalancer` service type.
+This operator integrates them together, supporting two APIs:
+1. **LoadBalancer Services**: Traditional Kubernetes Service resources of type `LoadBalancer`
+2. **Gateway API**: Modern Kubernetes Gateway API (v1) for advanced routing capabilities
 
 You can follow the [TUTORIAL.md](./tutorial.md) to see how to set up a cluster using RobotLB from scratch.
 
@@ -29,18 +31,20 @@ helm show values oci://ghcr.io/intreecom/charts/robotlb > values.yaml
 helm install robotlb oci://ghcr.io/intreecom/charts/robotlb -f values.yaml
 ```
 
-After the chart is installed, you should be able to create `LoadBalancer` services.
+After the chart is installed, you should be able to create `LoadBalancer` services and Gateway API resources.
 
 ## How it works
 
-The operator listens to the Kubernetes API for services of type `LoadBalancer` and creates Hetzner load balancers that point to nodes based on `node-ip`.
+The operator runs two concurrent controllers:
+1. **Service Controller**: Listens for services of type `LoadBalancer` and creates Hetzner load balancers
+2. **Gateway Controller**: Listens for Gateway API resources (Gateway, HTTPRoute, TCPRoute) and provisions load balancers
 
-Nodes are selected based on where the service's target pods are deployed, which is determined by searching for pods with the service's selector. This behavior can be configured.
+Nodes are selected based on where the target pods are deployed, which is determined by searching for pods with the service's selector. This behavior can be configured.
 
 
 ## Configuration
 
-This project has two places for configuration: environment variables and service annotations.
+This project has two places for configuration: environment variables and resource annotations (Service or Gateway).
 
 ### Envs
 
@@ -139,6 +143,107 @@ spec:
       port: 80  # This will become the listening port on the LB
       targetPort: 80
 ```
+
+## Gateway API Support
+
+RobotLB supports the Kubernetes Gateway API as a modern alternative to LoadBalancer Services. The Gateway API provides more advanced routing capabilities and a role-oriented design.
+
+### Prerequisites
+
+Install the Gateway API CRDs in your cluster:
+
+```bash
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/standard-install.yaml
+```
+
+For TCPRoute support, install the experimental channel:
+
+```bash
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/experimental-install.yaml
+```
+
+### Gateway Configuration
+
+Gateway resources use the same `robotlb/*` annotations as Services:
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: example-gateway
+  annotations:
+    # All the same annotations as Services are supported
+    robotlb/lb-network: "my-net"
+    robotlb/lb-location: "hel1"
+    robotlb/balancer-type: "lb11"
+    robotlb/lb-algorithm: "least-connections"
+    robotlb/lb-check-interval: "5"
+    robotlb/lb-timeout: "3"
+    robotlb/lb-retries: "3"
+spec:
+  gatewayClassName: robotlb
+  listeners:
+  - name: http
+    protocol: HTTP
+    port: 80
+  - name: https
+    protocol: HTTPS
+    port: 443
+```
+
+### HTTPRoute Example
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: example-route
+spec:
+  parentRefs:
+  - name: example-gateway
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /app
+    backendRefs:
+    - name: my-service
+      port: 8080
+```
+
+### TCPRoute Example
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TCPRoute
+metadata:
+  name: example-tcp-route
+spec:
+  parentRefs:
+  - name: example-gateway
+  rules:
+  - backendRefs:
+    - name: my-tcp-service
+      port: 3306
+```
+
+### How Gateway API Works with RobotLB
+
+1. Create a Gateway resource with `gatewayClassName: robotlb`
+2. The Gateway controller provisions a Hetzner Cloud load balancer
+3. Create HTTPRoute or TCPRoute resources that reference the Gateway
+4. RobotLB discovers backend Services from the routes
+5. Target nodes are determined by finding where backend Service pods run
+6. The load balancer is configured with the appropriate ports and targets
+7. Gateway status is updated with the load balancer's IP addresses
+
+### Benefits of Gateway API
+
+- **Rich Routing**: Advanced HTTP routing with header matching, path rewrites, etc.
+- **Role-Oriented**: Separation between infrastructure (Gateway) and routing (Routes)
+- **Protocol Support**: Native support for HTTP, HTTPS, TCP, and more
+- **Portable**: Works the same across different implementations
+- **Type-Safe**: Strongly typed API without relying on annotations for core functionality
 
 ## Star History
 

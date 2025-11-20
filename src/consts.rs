@@ -1,8 +1,9 @@
+// Service annotations
 pub const LB_NAME_LABEL_NAME: &str = "robotlb/balancer";
 pub const LB_NODE_SELECTOR: &str = "robotlb/node-selector";
 pub const LB_NODE_IP_LABEL_NAME: &str = "robotlb/node-ip";
 
-// LB config
+// LB config (used by both Service and Gateway)
 pub const LB_CHECK_INTERVAL_ANN_NAME: &str = "robotlb/lb-check-interval";
 pub const LB_TIMEOUT_ANN_NAME: &str = "robotlb/lb-timeout";
 pub const LB_RETRIES_ANN_NAME: &str = "robotlb/lb-retries";
@@ -22,5 +23,10 @@ pub const DEFAULT_LB_LOCATION: &str = "hel1";
 pub const DEFAULT_LB_ALGORITHM: &str = "least-connections";
 pub const DEFAULT_LB_BALANCER_TYPE: &str = "lb11";
 
+// Finalizers
 pub const FINALIZER_NAME: &str = "robotlb/finalizer";
+pub const GATEWAY_FINALIZER_NAME: &str = "robotlb/gateway-finalizer";
+
+// LoadBalancer class and GatewayClass
 pub const ROBOTLB_LB_CLASS: &str = "robotlb";
+pub const GATEWAY_CLASS_NAME: &str = "robotlb";
