@@ -78,7 +78,10 @@ pub async fn remove(client: Client, svc: &Service) -> RobotLBResult<()> {
 pub async fn add_gateway(client: Client, gateway: &Gateway) -> RobotLBResult<()> {
     let api = Api::<Gateway>::namespaced(
         client,
-        gateway.namespace().ok_or(RobotLBError::SkipGateway)?.as_str(),
+        gateway
+            .namespace()
+            .ok_or(RobotLBError::SkipGateway)?
+            .as_str(),
     );
     let patch = json!({
         "metadata": {
@@ -113,7 +116,10 @@ pub fn check_gateway(gateway: &Gateway) -> bool {
 pub async fn remove_gateway(client: Client, gateway: &Gateway) -> RobotLBResult<()> {
     let api = Api::<Gateway>::namespaced(
         client,
-        gateway.namespace().ok_or(RobotLBError::SkipGateway)?.as_str(),
+        gateway
+            .namespace()
+            .ok_or(RobotLBError::SkipGateway)?
+            .as_str(),
     );
     let finalizers = gateway
         .finalizers()

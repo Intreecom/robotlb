@@ -1,7 +1,4 @@
-use gateway_api::apis::{
-    experimental::tcproutes::TCPRoute,
-    standard::httproutes::HTTPRoute,
-};
+use gateway_api::apis::{experimental::tcproutes::TCPRoute, standard::httproutes::HTTPRoute};
 use k8s_openapi::api::core::v1::Service;
 use kube::{Api, ResourceExt};
 use std::collections::HashMap;
@@ -166,10 +163,8 @@ pub async fn get_backend_services(
         }
         seen_services.push(service_key);
 
-        let service_api = Api::<Service>::namespaced(
-            context.client.clone(),
-            &backend.service_namespace,
-        );
+        let service_api =
+            Api::<Service>::namespaced(context.client.clone(), &backend.service_namespace);
 
         match service_api.get(&backend.service_name).await {
             Ok(service) => {

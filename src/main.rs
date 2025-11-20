@@ -395,10 +395,7 @@ pub async fn reconcile_gateway(
     context: Arc<CurrentContext>,
 ) -> RobotLBResult<Action> {
     // Check if this Gateway uses our GatewayClass
-    let gateway_class = gateway
-        .spec
-        .gateway_class_name
-        .as_str();
+    let gateway_class = gateway.spec.gateway_class_name.as_str();
 
     if gateway_class != consts::GATEWAY_CLASS_NAME {
         tracing::debug!(
@@ -435,7 +432,10 @@ pub async fn reconcile_gateway(
 
         // For now, we only support TCP and HTTP (HTTP uses TCP)
         if protocol != "TCP" && protocol != "HTTP" && protocol != "HTTPS" {
-            tracing::warn!("Protocol {} is not supported. Skipping listener...", protocol);
+            tracing::warn!(
+                "Protocol {} is not supported. Skipping listener...",
+                protocol
+            );
             continue;
         }
 
@@ -449,9 +449,7 @@ pub async fn reconcile_gateway(
 
     // Find all HTTPRoute and TCPRoute resources that reference this Gateway
     let gateway_name = gateway.name_any();
-    let gateway_namespace = gateway
-        .namespace()
-        .ok_or(RobotLBError::SkipGateway)?;
+    let gateway_namespace = gateway.namespace().ok_or(RobotLBError::SkipGateway)?;
 
     let mut all_backend_services = Vec::new();
 
@@ -460,8 +458,7 @@ pub async fn reconcile_gateway(
     let http_routes = http_routes_api.list(&ListParams::default()).await?;
 
     for http_route in http_routes {
-        match routes::extract_http_route_backends(&http_route, &gateway_name, &gateway_namespace)
-        {
+        match routes::extract_http_route_backends(&http_route, &gateway_name, &gateway_namespace) {
             Ok(backends) => all_backend_services.extend(backends),
             Err(e) => {
                 tracing::warn!("Failed to extract backends from HTTPRoute: {}", e);
@@ -485,7 +482,8 @@ pub async fn reconcile_gateway(
     // If we have routes with backends, use them to determine nodes
     // Otherwise, we'll just provision the LB without targets (unusual but valid)
     if !all_backend_services.is_empty() {
-        let backend_services = routes::get_backend_services(&all_backend_services, &context).await?;
+        let backend_services =
+            routes::get_backend_services(&all_backend_services, &context).await?;
 
         // Determine node IP type based on network configuration
         let mut node_ip_type = "InternalIP";
@@ -610,7 +608,11 @@ async fn get_nodes_by_selector_for_service(
 
 /// Handle errors during service reconciliation.
 #[allow(clippy::needless_pass_by_value)]
-fn on_service_error(_: Arc<Service>, error: &RobotLBError, _context: Arc<CurrentContext>) -> Action {
+fn on_service_error(
+    _: Arc<Service>,
+    error: &RobotLBError,
+    _context: Arc<CurrentContext>,
+) -> Action {
     match error {
         RobotLBError::SkipService => Action::await_change(),
         _ => Action::requeue(Duration::from_secs(30)),
@@ -619,7 +621,11 @@ fn on_service_error(_: Arc<Service>, error: &RobotLBError, _context: Arc<Current
 
 /// Handle errors during gateway reconciliation.
 #[allow(clippy::needless_pass_by_value)]
-fn on_gateway_error(_: Arc<Gateway>, error: &RobotLBError, _context: Arc<CurrentContext>) -> Action {
+fn on_gateway_error(
+    _: Arc<Gateway>,
+    error: &RobotLBError,
+    _context: Arc<CurrentContext>,
+) -> Action {
     match error {
         RobotLBError::SkipGateway => Action::await_change(),
         _ => Action::requeue(Duration::from_secs(30)),

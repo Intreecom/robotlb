@@ -23,10 +23,7 @@ impl GatewayLoadBalancer {
     /// Create a new `GatewayLoadBalancer` instance from a Gateway resource
     /// and the current context.
     /// This method extracts configuration from Gateway annotations and spec.
-    pub fn try_from_gateway(
-        gateway: &Gateway,
-        context: &CurrentContext,
-    ) -> RobotLBResult<Self> {
+    pub fn try_from_gateway(gateway: &Gateway, context: &CurrentContext) -> RobotLBResult<Self> {
         let annotations = gateway.metadata.annotations.as_ref();
 
         // Parse health check configuration
@@ -94,9 +91,7 @@ impl GatewayLoadBalancer {
             .unwrap_or_else(|| gateway.name_any());
 
         let gateway_name = gateway.name_any();
-        let gateway_namespace = gateway
-            .namespace()
-            .ok_or(RobotLBError::SkipGateway)?;
+        let gateway_namespace = gateway.namespace().ok_or(RobotLBError::SkipGateway)?;
 
         Ok(Self {
             gateway_name: gateway_name.clone(),
