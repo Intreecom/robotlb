@@ -121,7 +121,10 @@ fn ensure_service_is_supported(svc: &Service) -> RobotLBResult<()> {
         .and_then(|spec| spec.type_.as_ref())
         .map_or("ClusterIP", String::as_str);
     if svc_type != "LoadBalancer" {
-        tracing::debug!(service_type = svc_type, "Service type is not LoadBalancer. Skipping...");
+        tracing::debug!(
+            service_type = svc_type,
+            "Service type is not LoadBalancer. Skipping..."
+        );
         return Err(RobotLBError::SkipService);
     }
 
@@ -141,7 +144,7 @@ fn ensure_service_is_supported(svc: &Service) -> RobotLBResult<()> {
     Ok(())
 }
 
-fn node_ip_type(lb: &LoadBalancer) -> &'static str {
+const fn node_ip_type(lb: &LoadBalancer) -> &'static str {
     if lb.network_name.is_none() {
         "ExternalIP"
     } else {
@@ -418,7 +421,7 @@ fn on_error(_: Arc<Service>, error: &RobotLBError, _context: Arc<CurrentContext>
     action_for_error(error)
 }
 
-fn action_for_error(error: &RobotLBError) -> Action {
+const fn action_for_error(error: &RobotLBError) -> Action {
     match error {
         RobotLBError::SkipService => Action::await_change(),
         _ => Action::requeue(Duration::from_secs(30)),
@@ -470,7 +473,11 @@ mod tests {
 
     #[test]
     fn service_filter_rejects_foreign_load_balancer_class() {
-        let svc = service_with_spec(service_spec("LoadBalancer", Some("other-controller"), vec![]));
+        let svc = service_with_spec(service_spec(
+            "LoadBalancer",
+            Some("other-controller"),
+            vec![],
+        ));
         let result = ensure_service_is_supported(&svc);
         assert!(matches!(result, Err(RobotLBError::SkipService)));
     }

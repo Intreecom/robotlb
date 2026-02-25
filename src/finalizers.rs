@@ -48,26 +48,26 @@ async fn apply_patch(
     finalizers: &[String],
     resource_version: Option<&str>,
 ) -> RobotLBResult<()> {
-    let patch = match resource_version {
-        Some(resource_version) => json!({
-            "metadata": {
-                "resourceVersion": resource_version,
-                "finalizers": finalizers,
-            }
-        }),
-        None => json!({
-            "metadata": {
-                "finalizers": finalizers,
-            }
-        }),
-    };
+    let patch = resource_version.map_or_else(
+        || {
+            json!({
+                "metadata": {
+                    "finalizers": finalizers,
+                }
+            })
+        },
+        |resource_version| {
+            json!({
+                "metadata": {
+                    "resourceVersion": resource_version,
+                    "finalizers": finalizers,
+                }
+            })
+        },
+    );
 
-    api.patch(
-        service_name,
-        &PatchParams::default(),
-        &Patch::Merge(&patch),
-    )
-    .await?;
+    api.patch(service_name, &PatchParams::default(), &Patch::Merge(&patch))
+        .await?;
     Ok(())
 }
 
@@ -90,9 +90,7 @@ async fn reconcile_finalizers(
         let resource_version = latest.metadata.resource_version.as_deref();
         match apply_patch(&api, service_name.as_str(), &desired, resource_version).await {
             Ok(()) => return Ok(()),
-            Err(RobotLBError::KubeError(kube::Error::Api(error))) if error.code == 409 => {
-                continue;
-            }
+            Err(RobotLBError::KubeError(kube::Error::Api(error))) if error.code == 409 => {}
             Err(err) => return Err(err),
         }
     }
