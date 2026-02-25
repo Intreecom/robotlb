@@ -663,6 +663,29 @@ fn parse_load_balancer_config(
     })
 }
 
+impl FromStr for LBAlgorithm {
+    type Err = RobotLBError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "round-robin" => Ok(Self::RoundRobin),
+            "least-connections" => Ok(Self::LeastConnections),
+            _ => Err(RobotLBError::UnknownLBAlgorithm),
+        }
+    }
+}
+
+impl From<LBAlgorithm> for LoadBalancerAlgorithm {
+    fn from(value: LBAlgorithm) -> Self {
+        let r#type = match value {
+            LBAlgorithm::RoundRobin => hcloud::models::load_balancer_algorithm::Type::RoundRobin,
+            LBAlgorithm::LeastConnections => {
+                hcloud::models::load_balancer_algorithm::Type::LeastConnections
+            }
+        };
+        Self { r#type }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::parse_load_balancer_config;
@@ -767,28 +790,5 @@ mod tests {
             result,
             Err(crate::error::RobotLBError::UnknownLBAlgorithm)
         ));
-    }
-}
-
-impl FromStr for LBAlgorithm {
-    type Err = RobotLBError;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "round-robin" => Ok(Self::RoundRobin),
-            "least-connections" => Ok(Self::LeastConnections),
-            _ => Err(RobotLBError::UnknownLBAlgorithm),
-        }
-    }
-}
-
-impl From<LBAlgorithm> for LoadBalancerAlgorithm {
-    fn from(value: LBAlgorithm) -> Self {
-        let r#type = match value {
-            LBAlgorithm::RoundRobin => hcloud::models::load_balancer_algorithm::Type::RoundRobin,
-            LBAlgorithm::LeastConnections => {
-                hcloud::models::load_balancer_algorithm::Type::LeastConnections
-            }
-        };
-        Self { r#type }
     }
 }
