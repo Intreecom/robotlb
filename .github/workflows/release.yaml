@@ -1,13 +1,13 @@
 name: Release
 
 on:
-  release:
-    types: [released]
+  push:
+    tags:
+      - '[0-9]+(\.[0-9]+){2}(-[0-9A-Za-z.-]+)?'
 
 permissions:
   contents: read
   packages: write
-
 
 jobs:
   release_image:
@@ -15,9 +15,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Update version
-        # Update a version in Cargo.toml before building the app.
-        run: sed -i '0,/^version = .*/{s/version = .*/version = "${{ github.ref_name }}"/}' Cargo.toml
       - name: Set up Docker
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
@@ -25,9 +22,9 @@ jobs:
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v2
         with:
-            registry: ghcr.io
-            username: ${{ github.actor }}
-            password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push
         uses: docker/build-push-action@v2
         with:
@@ -35,7 +32,7 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64 # ,linux/arm64,linux/arm/v7  (uncomment once the fix for long builds is found).
           push: true
-          tags: ghcr.io/intreecom/robotlb:latest,ghcr.io/intreecom/robotlb:${{ github.ref_name }}
+          tags: ghcr.io/forkline/robotlb:latest,ghcr.io/forkline/robotlb:${{ github.ref_name }}
 
   upload_helm:
     runs-on: ubuntu-latest
@@ -53,6 +50,6 @@ jobs:
           helm package --app-version "${{ github.ref_name }}" --dependency-update ./helm
           helm show chart *.tgz
           helm registry login -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }} ghcr.io
-          helm push *.tgz oci://ghcr.io/intreecom/charts
+          helm push *.tgz oci://ghcr.io/forkline/helm-charts
         env:
           HELM_EXPERIMENTAL_OCI: 1
