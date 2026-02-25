@@ -68,6 +68,35 @@ pub struct OperatorConfig {
     #[arg(long, env = "ROBOTLB_IPV6_INGRESS", default_value = "false")]
     pub ipv6_ingress: bool,
 
+    /// Optional namespace for the leader election lease.
+    /// If not set, robotlb will auto-detect its runtime namespace.
+    #[arg(long, env = "ROBOTLB_LEADER_ELECTION_NAMESPACE", default_value = None)]
+    pub leader_election_namespace: Option<String>,
+
+    /// Name of the Kubernetes Lease object used for leader election.
+    #[arg(
+        long,
+        env = "ROBOTLB_LEADER_ELECTION_LEASE_NAME",
+        default_value = "robotlb-leader-election"
+    )]
+    pub leader_election_lease_name: String,
+
+    /// Lease TTL in seconds.
+    #[arg(
+        long,
+        env = "ROBOTLB_LEADER_ELECTION_LEASE_TTL_SECS",
+        default_value = "15"
+    )]
+    pub leader_election_lease_ttl_secs: u64,
+
+    /// How often to attempt lease acquire/renew in seconds.
+    #[arg(
+        long,
+        env = "ROBOTLB_LEADER_ELECTION_RENEW_INTERVAL_SECS",
+        default_value = "5"
+    )]
+    pub leader_election_renew_interval_secs: u64,
+
     // Log level of the operator.
     #[arg(long, env = "ROBOTLB_LOG_LEVEL", default_value = "INFO")]
     pub log_level: LevelFilter,
@@ -95,6 +124,10 @@ mod tests {
         assert_eq!(config.default_lb_algorithm, "least-connections");
         assert!(!config.default_lb_proxy_mode_enabled);
         assert!(!config.ipv6_ingress);
+        assert_eq!(config.leader_election_namespace, None);
+        assert_eq!(config.leader_election_lease_name, "robotlb-leader-election");
+        assert_eq!(config.leader_election_lease_ttl_secs, 15);
+        assert_eq!(config.leader_election_renew_interval_secs, 5);
         assert_eq!(config.log_level, LevelFilter::INFO);
     }
 
@@ -120,6 +153,14 @@ mod tests {
             "round-robin",
             "--default-lb-proxy-mode-enabled",
             "--ipv6-ingress",
+            "--leader-election-namespace",
+            "robotlb",
+            "--leader-election-lease-name",
+            "robotlb-ha-lock",
+            "--leader-election-lease-ttl-secs",
+            "30",
+            "--leader-election-renew-interval-secs",
+            "10",
             "--log-level",
             "DEBUG",
         ])
@@ -135,6 +176,10 @@ mod tests {
         assert_eq!(config.default_lb_algorithm, "round-robin");
         assert!(config.default_lb_proxy_mode_enabled);
         assert!(config.ipv6_ingress);
+        assert_eq!(config.leader_election_namespace.as_deref(), Some("robotlb"));
+        assert_eq!(config.leader_election_lease_name, "robotlb-ha-lock");
+        assert_eq!(config.leader_election_lease_ttl_secs, 30);
+        assert_eq!(config.leader_election_renew_interval_secs, 10);
         assert_eq!(config.log_level, LevelFilter::DEBUG);
     }
 }

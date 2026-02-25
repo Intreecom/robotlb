@@ -1083,6 +1083,10 @@ mod tests {
             default_lb_algorithm: "least-connections".to_string(),
             default_lb_proxy_mode_enabled: false,
             ipv6_ingress: false,
+            leader_election_namespace: None,
+            leader_election_lease_name: "robotlb-leader-election".to_string(),
+            leader_election_lease_ttl_secs: 15,
+            leader_election_renew_interval_secs: 5,
             log_level: LevelFilter::INFO,
         }
     }

@@ -31,9 +31,18 @@ use kube::{
     runtime::{controller::Action, reflector::ObjectRef, watcher, Controller},
     Resource, ResourceExt,
 };
+use kube_leader_election::{LeaseLock, LeaseLockParams, LeaseLockResult};
 use label_filter::LabelFilter;
 use lb::LoadBalancer;
-use std::{collections::HashSet, str::FromStr, sync::Arc, time::Duration};
+use std::{
+    collections::HashSet,
+    str::FromStr,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
 const SUCCESS_REQUEUE_SECS: u64 = 180;
 
@@ -62,11 +71,14 @@ async fn main() -> RobotLBResult<()> {
     tracing::info!("Starting robotlb operator v{}", env!("CARGO_PKG_VERSION"));
     let kube_client = kube::Client::try_default().await?;
     tracing::info!("Kube client is connected");
-    watcher::Config::default();
+    let is_leader = Arc::new(AtomicBool::new(false));
+    spawn_leader_election_task(kube_client.clone(), &operator_config, is_leader.clone());
+
     let context = Arc::new(CurrentContext::new(
         kube_client.clone(),
         operator_config.clone(),
         hcloud_conf,
+        is_leader,
     ));
     tracing::info!("Starting the controller");
     Controller::new(
@@ -106,6 +118,7 @@ pub struct CurrentContext {
     pub client: kube::Client,
     pub config: OperatorConfig,
     pub hcloud_config: HCloudConfig,
+    pub is_leader: Arc<AtomicBool>,
 }
 impl CurrentContext {
     #[must_use]
@@ -113,11 +126,13 @@ impl CurrentContext {
         client: kube::Client,
         config: OperatorConfig,
         hcloud_config: HCloudConfig,
+        is_leader: Arc<AtomicBool>,
     ) -> Self {
         Self {
             client,
             config,
             hcloud_config,
+            is_leader,
         }
     }
 }
@@ -306,6 +321,10 @@ pub async fn reconcile_service(
     svc: Arc<Service>,
     context: Arc<CurrentContext>,
 ) -> RobotLBResult<Action> {
+    if !context.is_leader.load(Ordering::Relaxed) {
+        return Err(RobotLBError::SkipService);
+    }
+
     ensure_service_is_supported(&svc)?;
 
     tracing::info!("Starting service reconcilation");
@@ -447,6 +466,72 @@ fn map_endpoint_slice_to_service(endpoint_slice: &EndpointSlice) -> Option<Objec
         .clone();
 
     Some(ObjectRef::new(&service_name).within(&namespace))
+}
+
+fn spawn_leader_election_task(
+    client: kube::Client,
+    config: &OperatorConfig,
+    is_leader: Arc<AtomicBool>,
+) {
+    let lease_namespace = config
+        .leader_election_namespace
+        .clone()
+        .unwrap_or_else(detect_runtime_namespace);
+    let holder_id =
+        std::env::var("HOSTNAME").unwrap_or_else(|_| format!("robotlb-{}", std::process::id()));
+    let lease = LeaseLock::new(
+        client,
+        &lease_namespace,
+        LeaseLockParams {
+            holder_id: holder_id.clone(),
+            lease_name: config.leader_election_lease_name.clone(),
+            lease_ttl: Duration::from_secs(config.leader_election_lease_ttl_secs),
+        },
+    );
+    let renew_interval = Duration::from_secs(config.leader_election_renew_interval_secs);
+
+    tracing::info!(
+        lease_name = %config.leader_election_lease_name,
+        lease_namespace = %lease_namespace,
+        holder_id = %holder_id,
+        "Starting leader election"
+    );
+
+    tokio::spawn(async move {
+        loop {
+            match lease.try_acquire_or_renew().await {
+                Ok(LeaseLockResult::Acquired(_)) => {
+                    if !is_leader.load(Ordering::Relaxed) {
+                        tracing::info!("Leadership acquired");
+                    }
+                    is_leader.store(true, Ordering::Relaxed);
+                }
+                Ok(LeaseLockResult::NotAcquired(_)) => {
+                    if is_leader.load(Ordering::Relaxed) {
+                        tracing::warn!("Leadership lost");
+                    }
+                    is_leader.store(false, Ordering::Relaxed);
+                }
+                Err(err) => {
+                    if is_leader.load(Ordering::Relaxed) {
+                        tracing::warn!(error = %err, "Leader election failed, stepping down");
+                    } else {
+                        tracing::warn!(error = %err, "Leader election attempt failed");
+                    }
+                    is_leader.store(false, Ordering::Relaxed);
+                }
+            }
+            tokio::time::sleep(renew_interval).await;
+        }
+    });
+}
+
+fn detect_runtime_namespace() -> String {
+    std::fs::read_to_string("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+        .ok()
+        .map(|namespace| namespace.trim().to_string())
+        .filter(|namespace| !namespace.is_empty())
+        .unwrap_or_else(|| "default".to_string())
 }
 
 #[cfg(test)]

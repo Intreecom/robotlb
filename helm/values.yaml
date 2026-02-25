@@ -12,6 +12,8 @@ imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
 
+replicaCount: 1
+
 envs:
   ROBOTLB_LOG_LEVEL: "INFO"
 
@@ -39,6 +41,9 @@ serviceAccount:
     - apiGroups: ["discovery.k8s.io"]
       resources: [endpointslices]
       verbs: [get, list, watch]
+    - apiGroups: ["coordination.k8s.io"]
+      resources: [leases]
+      verbs: [get, list, watch, create, patch, update]
 
 podAnnotations: {}
 podLabels: {}
