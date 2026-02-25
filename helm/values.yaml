@@ -30,12 +30,12 @@ serviceAccount:
   # This is a list of cluster permissions to apply to the service account.
   # By default it grants all permissions.
   permissions:
-  - apiGroups: [""]
-    resources: [services, services/status]
-    verbs: [get, list, patch, update, watch]
-  - apiGroups: [""]
-    resources: [nodes, pods]
-    verbs: [get, list, watch]
+    - apiGroups: [""]
+      resources: [services, services/status]
+      verbs: [get, list, patch, update, watch]
+    - apiGroups: [""]
+      resources: [nodes, pods]
+      verbs: [get, list, watch]
 
 podAnnotations: {}
 podLabels: {}

@@ -127,8 +127,7 @@ pub async fn reconcile_service(
         .spec
         .as_ref()
         .and_then(|s| s.type_.as_ref())
-        .map(String::as_str)
-        .unwrap_or("ClusterIP");
+        .map_or("ClusterIP", String::as_str);
     if svc_type != "LoadBalancer" {
         tracing::debug!("Service type is not LoadBalancer. Skipping...");
         return Err(RobotLBError::SkipService);
@@ -138,8 +137,7 @@ pub async fn reconcile_service(
         .spec
         .as_ref()
         .and_then(|s| s.load_balancer_class.as_ref())
-        .map(String::as_str)
-        .unwrap_or(consts::ROBOTLB_LB_CLASS);
+        .map_or(consts::ROBOTLB_LB_CLASS, String::as_str);
     if lb_type != consts::ROBOTLB_LB_CLASS {
         tracing::debug!("Load balancer class is not robotlb. Skipping...");
         return Err(RobotLBError::SkipService);
@@ -175,10 +173,10 @@ async fn get_nodes_dynamically(
 ) -> RobotLBResult<Vec<Node>> {
     let pod_api = kube::Api::<Pod>::namespaced(
         context.client.clone(),
-        svc.namespace()
-            .as_ref()
-            .map(String::as_str)
-            .unwrap_or_else(|| context.client.default_namespace()),
+        svc.namespace().as_deref().map_or_else(
+            || context.client.default_namespace(),
+            std::convert::identity,
+        ),
     );
 
     let Some(pod_selector) = svc.spec.as_ref().and_then(|spec| spec.selector.clone()) else {
@@ -200,8 +198,7 @@ async fn get_nodes_dynamically(
 
     let target_nodes = pods
         .iter()
-        .map(|pod| pod.spec.clone().unwrap_or_default().node_name)
-        .flatten()
+        .filter_map(|pod| pod.spec.clone().unwrap_or_default().node_name)
         .collect::<HashSet<_>>();
 
     let nodes_api = kube::Api::<Node>::all(context.client.clone());
@@ -246,10 +243,11 @@ pub async fn reconcile_load_balancer(
     svc: Arc<Service>,
     context: Arc<CurrentContext>,
 ) -> RobotLBResult<Action> {
-    let mut node_ip_type = "InternalIP";
-    if lb.network_name.is_none() {
-        node_ip_type = "ExternalIP";
-    }
+    let node_ip_type = if lb.network_name.is_none() {
+        "ExternalIP"
+    } else {
+        "InternalIP"
+    };
 
     let nodes = if context.config.dynamic_node_selector {
         get_nodes_dynamically(&svc, &context).await?
@@ -313,7 +311,7 @@ pub async fn reconcile_load_balancer(
             "ip": ipv4,
             "dns": dns_ipv4,
             "ip_mode": "VIP"
-        }))
+        }));
     }
     if context.config.ipv6_ingress {
         if let Some(ipv6) = &ipv6 {
@@ -321,7 +319,7 @@ pub async fn reconcile_load_balancer(
                 "ip": ipv6,
                 "dns": dns_ipv6,
                 "ip_mode": "VIP"
-            }))
+            }));
         }
     }
 

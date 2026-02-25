@@ -6,6 +6,7 @@ repos:
       - id: check-executables-have-shebangs
       - id: check-merge-conflict
       - id: check-shebang-scripts-are-executable
+        exclude: ^src/
       - id: detect-private-key
       - id: end-of-file-fixer
       - id: mixed-line-ending
@@ -15,6 +16,7 @@ repos:
     rev: v1.38.0
     hooks:
       - id: yamllint
+        exclude: ^helm/templates/
 
   - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
     rev: v9.24.0
