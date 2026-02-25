@@ -59,7 +59,7 @@ commit_parsers = [
     { message = "^docs", group = "<!-- 2 -->Documentation" },
     { message = "^build", group = "Build" },
     { message = "^refactor", group = "Refactor" },
-    { message = "^release", skip = true },
+    { message = "^release", group = "Release" },
     { message = "^style", group = "Styling" },
     { message = "^test", group = "Testing" },
 ]
@@ -68,6 +68,6 @@ protect_breaking_commits = false
 # filter out the commits that are not matched by commit parsers
 filter_commits = false
 # glob pattern for matching git tags
-tag_pattern = "v[0-9]*"
+tag_pattern = "[0-9]*"
 # sort the commits inside sections by oldest/newest order
 sort_commits = "oldest"
