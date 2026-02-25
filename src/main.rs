@@ -114,6 +114,91 @@ impl CurrentContext {
     }
 }
 
+fn ensure_service_is_supported(svc: &Service) -> RobotLBResult<()> {
+    let svc_type = svc
+        .spec
+        .as_ref()
+        .and_then(|spec| spec.type_.as_ref())
+        .map_or("ClusterIP", String::as_str);
+    if svc_type != "LoadBalancer" {
+        tracing::debug!(service_type = svc_type, "Service type is not LoadBalancer. Skipping...");
+        return Err(RobotLBError::SkipService);
+    }
+
+    let lb_class = svc
+        .spec
+        .as_ref()
+        .and_then(|spec| spec.load_balancer_class.as_ref())
+        .map_or(consts::ROBOTLB_LB_CLASS, String::as_str);
+    if lb_class != consts::ROBOTLB_LB_CLASS {
+        tracing::debug!(
+            load_balancer_class = lb_class,
+            "Load balancer class is not robotlb. Skipping..."
+        );
+        return Err(RobotLBError::SkipService);
+    }
+
+    Ok(())
+}
+
+fn node_ip_type(lb: &LoadBalancer) -> &'static str {
+    if lb.network_name.is_none() {
+        "ExternalIP"
+    } else {
+        "InternalIP"
+    }
+}
+
+fn derive_targets(nodes: Vec<Node>, desired_ip_type: &str) -> Vec<String> {
+    let mut targets = Vec::new();
+
+    for node in nodes {
+        let Some(status) = node.status else {
+            continue;
+        };
+        let Some(addresses) = status.addresses else {
+            continue;
+        };
+        for addr in addresses {
+            if addr.type_ == desired_ip_type {
+                targets.push(addr.address);
+            }
+        }
+    }
+
+    targets
+}
+
+fn derive_services(svc: &Service) -> Vec<(i32, i32)> {
+    let mut services = Vec::new();
+
+    for port in svc
+        .spec
+        .as_ref()
+        .and_then(|spec| spec.ports.as_ref())
+        .cloned()
+        .unwrap_or_default()
+    {
+        let protocol = port.protocol.unwrap_or_else(|| "TCP".to_string());
+        if protocol != "TCP" {
+            tracing::warn!("Protocol {} is not supported. Skipping...", protocol);
+            continue;
+        }
+
+        let Some(node_port) = port.node_port else {
+            tracing::warn!(
+                "Node port is not set for target_port {}. Skipping...",
+                port.port
+            );
+            continue;
+        };
+
+        services.push((port.port, node_port));
+    }
+
+    services
+}
+
 /// Reconcile the service.
 /// This function is called by the controller for each service.
 /// It will create or update the load balancer based on the service.
@@ -123,25 +208,7 @@ pub async fn reconcile_service(
     svc: Arc<Service>,
     context: Arc<CurrentContext>,
 ) -> RobotLBResult<Action> {
-    let svc_type = svc
-        .spec
-        .as_ref()
-        .and_then(|s| s.type_.as_ref())
-        .map_or("ClusterIP", String::as_str);
-    if svc_type != "LoadBalancer" {
-        tracing::debug!("Service type is not LoadBalancer. Skipping...");
-        return Err(RobotLBError::SkipService);
-    }
-
-    let lb_type = svc
-        .spec
-        .as_ref()
-        .and_then(|s| s.load_balancer_class.as_ref())
-        .map_or(consts::ROBOTLB_LB_CLASS, String::as_str);
-    if lb_type != consts::ROBOTLB_LB_CLASS {
-        tracing::debug!("Load balancer class is not robotlb. Skipping...");
-        return Err(RobotLBError::SkipService);
-    }
+    ensure_service_is_supported(&svc)?;
 
     tracing::info!("Starting service reconcilation");
 
@@ -243,11 +310,7 @@ pub async fn reconcile_load_balancer(
     svc: Arc<Service>,
     context: Arc<CurrentContext>,
 ) -> RobotLBResult<Action> {
-    let node_ip_type = if lb.network_name.is_none() {
-        "ExternalIP"
-    } else {
-        "InternalIP"
-    };
+    let node_ip_type = node_ip_type(&lb);
 
     let nodes = if context.config.dynamic_node_selector {
         get_nodes_dynamically(&svc, &context).await?
@@ -255,40 +318,12 @@ pub async fn reconcile_load_balancer(
         get_nodes_by_selector(&svc, &context).await?
     };
 
-    for node in nodes {
-        let Some(status) = node.status else {
-            continue;
-        };
-        let Some(addresses) = status.addresses else {
-            continue;
-        };
-        for addr in addresses {
-            if addr.type_ == node_ip_type {
-                lb.add_target(&addr.address);
-            }
-        }
+    for target in derive_targets(nodes, node_ip_type) {
+        lb.add_target(&target);
     }
 
-    for port in svc
-        .spec
-        .clone()
-        .unwrap_or_default()
-        .ports
-        .unwrap_or_default()
-    {
-        let protocol = port.protocol.unwrap_or_else(|| "TCP".to_string());
-        if protocol != "TCP" {
-            tracing::warn!("Protocol {} is not supported. Skipping...", protocol);
-            continue;
-        }
-        let Some(node_port) = port.node_port else {
-            tracing::warn!(
-                "Node port is not set for target_port {}. Skipping...",
-                port.port
-            );
-            continue;
-        };
-        lb.add_service(port.port, node_port);
+    for (listen_port, target_port) in derive_services(&svc) {
+        lb.add_service(listen_port, target_port);
     }
 
     let svc_api = kube::Api::<Service>::namespaced(
@@ -345,8 +380,147 @@ pub async fn reconcile_load_balancer(
 /// Handle the error during reconcilation.
 #[allow(clippy::needless_pass_by_value)]
 fn on_error(_: Arc<Service>, error: &RobotLBError, _context: Arc<CurrentContext>) -> Action {
+    action_for_error(error)
+}
+
+fn action_for_error(error: &RobotLBError) -> Action {
     match error {
         RobotLBError::SkipService => Action::await_change(),
         _ => Action::requeue(Duration::from_secs(30)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{action_for_error, derive_services, derive_targets, ensure_service_is_supported};
+    use crate::error::RobotLBError;
+    use k8s_openapi::{
+        api::core::v1::{Node, NodeAddress, NodeStatus, Service, ServicePort, ServiceSpec},
+        apimachinery::pkg::apis::meta::v1::ObjectMeta,
+    };
+    use kube::runtime::controller::Action;
+    use std::time::Duration;
+
+    fn service_with_spec(spec: ServiceSpec) -> Service {
+        Service {
+            metadata: ObjectMeta {
+                name: Some("svc".to_string()),
+                namespace: Some("default".to_string()),
+                ..Default::default()
+            },
+            spec: Some(spec),
+            ..Default::default()
+        }
+    }
+
+    fn service_spec(
+        service_type: &str,
+        lb_class: Option<&str>,
+        ports: Vec<ServicePort>,
+    ) -> ServiceSpec {
+        ServiceSpec {
+            type_: Some(service_type.to_string()),
+            load_balancer_class: lb_class.map(str::to_string),
+            ports: Some(ports),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn service_filter_rejects_non_load_balancer_type() {
+        let svc = service_with_spec(service_spec("ClusterIP", None, vec![]));
+        let result = ensure_service_is_supported(&svc);
+        assert!(matches!(result, Err(RobotLBError::SkipService)));
+    }
+
+    #[test]
+    fn service_filter_rejects_foreign_load_balancer_class() {
+        let svc = service_with_spec(service_spec("LoadBalancer", Some("other-controller"), vec![]));
+        let result = ensure_service_is_supported(&svc);
+        assert!(matches!(result, Err(RobotLBError::SkipService)));
+    }
+
+    #[test]
+    fn service_filter_accepts_default_robotlb_class() {
+        let svc = service_with_spec(service_spec("LoadBalancer", None, vec![]));
+        assert!(ensure_service_is_supported(&svc).is_ok());
+    }
+
+    #[test]
+    fn derive_targets_picks_matching_address_type() {
+        let nodes = vec![
+            Node {
+                status: Some(NodeStatus {
+                    addresses: Some(vec![
+                        NodeAddress {
+                            address: "10.0.0.10".to_string(),
+                            type_: "InternalIP".to_string(),
+                        },
+                        NodeAddress {
+                            address: "203.0.113.10".to_string(),
+                            type_: "ExternalIP".to_string(),
+                        },
+                    ]),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            Node {
+                status: Some(NodeStatus {
+                    addresses: Some(vec![NodeAddress {
+                        address: "203.0.113.11".to_string(),
+                        type_: "ExternalIP".to_string(),
+                    }]),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        ];
+
+        let targets = derive_targets(nodes, "ExternalIP");
+        assert_eq!(targets, vec!["203.0.113.10", "203.0.113.11"]);
+    }
+
+    #[test]
+    fn derive_services_keeps_only_tcp_node_port_pairs() {
+        let svc = service_with_spec(service_spec(
+            "LoadBalancer",
+            None,
+            vec![
+                ServicePort {
+                    port: 80,
+                    protocol: Some("TCP".to_string()),
+                    node_port: Some(30080),
+                    ..Default::default()
+                },
+                ServicePort {
+                    port: 443,
+                    protocol: Some("UDP".to_string()),
+                    node_port: Some(30443),
+                    ..Default::default()
+                },
+                ServicePort {
+                    port: 8080,
+                    protocol: Some("TCP".to_string()),
+                    node_port: None,
+                    ..Default::default()
+                },
+            ],
+        ));
+
+        let services = derive_services(&svc);
+        assert_eq!(services, vec![(80, 30080)]);
+    }
+
+    #[test]
+    fn on_error_awaits_change_for_skipped_service() {
+        let action = action_for_error(&RobotLBError::SkipService);
+        assert_eq!(action, Action::await_change());
+    }
+
+    #[test]
+    fn on_error_requeues_for_non_skip_errors() {
+        let action = action_for_error(&RobotLBError::ServiceWithoutSelector);
+        assert_eq!(action, Action::requeue(Duration::from_secs(30)));
     }
 }
