@@ -1,19 +1,24 @@
 # Hetzner LoadBalancer for bare-metal robot clusters
 
-This project is useful when you've deployed a bare-metal Kubernetes cluster on Hetzner Robot and want to use Hetzner's cloud load balancer.
+This project is useful when you've deployed a bare-metal Kubernetes cluster on Hetzner Robot and
+want to use Hetzner's cloud load balancer.
 
 This small operator integrates them together, allowing you to use the `LoadBalancer` service type.
 
-You can follow the [TUTORIAL.md](./tutorial.md) to see how to set up a cluster using RobotLB from scratch.
+You can follow the [TUTORIAL.md](./tutorial.md) to see how to set up a cluster using RobotLB from
+scratch.
 
 ## Prerequisites
 
 Before using this operator, make sure:
 
-1. You have a cluster deployed on [Hetzner robot](https://robot.hetzner.com/) (at least agent nodes);
-2. You've created a [vSwitch](https://docs.hetzner.com/robot/dedicated-server/network/vswitch/) for these servers;
+1. You have a cluster deployed on [Hetzner robot](https://robot.hetzner.com/) (at least agent
+   nodes);
+2. You've created a [vSwitch](https://docs.hetzner.com/robot/dedicated-server/network/vswitch/) for
+   these servers;
 3. You've assigned IPs to your dedicated servers within the vSwitch network.
-4. You have a cloud network with subnet that points to the vSwitch ([Tutorial](https://docs.hetzner.com/cloud/networks/connect-dedi-vswitch/));
+4. You have a cloud network with subnet that points to the vSwitch
+   ([Tutorial](https://docs.hetzner.com/cloud/networks/connect-dedi-vswitch/));
 5. You’ve specified node IPs using the `--node-ip` argument with the private IP.
 
 If you meet all the requirements, you can deploy `robotlb`.
@@ -33,10 +38,11 @@ After the chart is installed, you should be able to create `LoadBalancer` servic
 
 ## How it works
 
-The operator listens to the Kubernetes API for services of type `LoadBalancer` and creates Hetzner load balancers that point to nodes based on `node-ip`.
+The operator listens to the Kubernetes API for services of type `LoadBalancer` and creates Hetzner
+load balancers that point to nodes based on `node-ip`.
 
-Nodes are selected based on where the service's target pods are deployed, which is determined by searching for pods with the service's selector. This behavior can be configured.
-
+Nodes are selected based on where the service's target pods are deployed, which is determined by
+searching for pods with the service's selector. This behavior can be configured.
 
 ## Configuration
 
@@ -44,7 +50,8 @@ This project has two places for configuration: environment variables and service
 
 ### Envs
 
-Environment variables are mainly used to override default arguments and provide sensitive information.
+Environment variables are mainly used to override default arguments and provide sensitive
+information.
 
 Here’s a complete list of parameters for the operator's binary:
 
@@ -80,9 +87,7 @@ Options:
           Print help
 ```
 
-
 ### Service annotations
-
 
 ```yaml
 apiVersion: v1
@@ -136,10 +141,10 @@ spec:
   ports:
     # Currently only TCP protocol is supported. UDP will be ignored.
     - protocol: TCP
-      port: 80  # This will become the listening port on the LB
+      port: 80 # This will become the listening port on the LB
       targetPort: 80
 ```
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Intreecom/robotlb&type=Date)](https://star-history.com/#Intreecom/robotlb&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=forkline/robotlb&type=Date)](https://star-history.com/#forkline/robotlb&Date)
