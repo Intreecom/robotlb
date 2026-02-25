@@ -40,7 +40,7 @@ enum LBAlgorithm {
 }
 
 #[async_trait]
-trait HcloudLoadBalancerApi {
+trait HcloudLoadBalancerApi: Send + Sync {
     async fn update_service(
         &self,
         load_balancer_id: i64,
@@ -1002,28 +1002,29 @@ mod tests {
         services: Vec<LoadBalancerService>,
         targets: Vec<&str>,
     ) -> hcloud::models::LoadBalancer {
-        let mut balancer = hcloud::models::LoadBalancer::default();
-        balancer.id = 42;
-        balancer.name = "svc-name".to_string();
-        balancer.services = services;
-        balancer.targets = targets
-            .into_iter()
-            .map(|ip| hcloud::models::LoadBalancerTarget {
-                ip: Some(Box::new(hcloud::models::LoadBalancerTargetIp {
-                    ip: ip.to_string(),
-                })),
+        hcloud::models::LoadBalancer {
+            id: 42,
+            name: "svc-name".to_string(),
+            services,
+            targets: targets
+                .into_iter()
+                .map(|ip| hcloud::models::LoadBalancerTarget {
+                    ip: Some(Box::new(hcloud::models::LoadBalancerTargetIp {
+                        ip: ip.to_string(),
+                    })),
+                    ..Default::default()
+                })
+                .collect(),
+            algorithm: Box::new(LoadBalancerAlgorithm {
+                r#type: hcloud::models::load_balancer_algorithm::Type::RoundRobin,
+            }),
+            load_balancer_type: Box::new(hcloud::models::LoadBalancerType {
+                id: 1,
+                name: "lb11".to_string(),
                 ..Default::default()
-            })
-            .collect();
-        balancer.algorithm = Box::new(LoadBalancerAlgorithm {
-            r#type: hcloud::models::load_balancer_algorithm::Type::RoundRobin,
-        });
-        balancer.load_balancer_type = Box::new(hcloud::models::LoadBalancerType {
-            id: 1,
-            name: "lb11".to_string(),
+            }),
             ..Default::default()
-        });
-        balancer
+        }
     }
 
     #[test]
