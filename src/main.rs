@@ -23,16 +23,19 @@ use futures::StreamExt;
 use hcloud::apis::configuration::Configuration as HCloudConfig;
 use k8s_openapi::{
     api::core::v1::{Node, Pod, Service},
+    api::discovery::v1::EndpointSlice,
     serde_json::{json, Value},
 };
 use kube::{
     api::{ListParams, PatchParams},
-    runtime::{controller::Action, watcher, Controller},
+    runtime::{controller::Action, reflector::ObjectRef, watcher, Controller},
     Resource, ResourceExt,
 };
 use label_filter::LabelFilter;
 use lb::LoadBalancer;
 use std::{collections::HashSet, str::FromStr, sync::Arc, time::Duration};
+
+const SUCCESS_REQUEUE_SECS: u64 = 180;
 
 pub mod config;
 pub mod consts;
@@ -69,6 +72,11 @@ async fn main() -> RobotLBResult<()> {
     Controller::new(
         kube::Api::<Service>::all(kube_client),
         watcher::Config::default(),
+    )
+    .watches(
+        kube::Api::<EndpointSlice>::all(context.client.clone()),
+        watcher::Config::default(),
+        |endpoint_slice| map_endpoint_slice_to_service(&endpoint_slice),
     )
     .run(reconcile_service, on_error, context)
     .for_each(|reconcilation_result| async move {
@@ -405,6 +413,16 @@ pub async fn reconcile_load_balancer(
     let nodes = discover_target_nodes(&svc, &context).await?;
     let desired_targets = derive_targets(nodes, desired_ip_type);
     let desired_services = derive_services(&svc);
+
+    tracing::debug!(
+        service = %svc.name_any(),
+        target_count = desired_targets.len(),
+        service_count = desired_services.len(),
+        desired_targets = ?desired_targets,
+        desired_services = ?desired_services,
+        "Computed desired load balancer state"
+    );
+
     apply_desired_state(&mut lb, desired_targets, desired_services);
 
     let hcloud_lb = lb.reconcile().await?;
@@ -412,7 +430,7 @@ pub async fn reconcile_load_balancer(
     let ingress = build_ingress(&hcloud_lb, context.config.ipv6_ingress);
     patch_ingress_status(&svc, &context, ingress).await?;
 
-    Ok(Action::requeue(Duration::from_secs(30)))
+    Ok(Action::requeue(Duration::from_secs(SUCCESS_REQUEUE_SECS)))
 }
 
 /// Handle the error during reconcilation.
@@ -426,6 +444,18 @@ const fn action_for_error(error: &RobotLBError) -> Action {
         RobotLBError::SkipService => Action::await_change(),
         _ => Action::requeue(Duration::from_secs(30)),
     }
+}
+
+fn map_endpoint_slice_to_service(endpoint_slice: &EndpointSlice) -> Option<ObjectRef<Service>> {
+    let namespace = endpoint_slice.namespace()?;
+    let service_name = endpoint_slice
+        .metadata
+        .labels
+        .as_ref()?
+        .get("kubernetes.io/service-name")?
+        .clone();
+
+    Some(ObjectRef::new(&service_name).within(&namespace))
 }
 
 #[cfg(test)]

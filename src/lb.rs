@@ -19,7 +19,10 @@ use hcloud::{
 };
 use k8s_openapi::api::core::v1::Service;
 use kube::ResourceExt;
-use std::{collections::HashMap, str::FromStr};
+use std::{
+    collections::{HashMap, HashSet},
+    str::FromStr,
+};
 
 use crate::{
     config::OperatorConfig,
@@ -279,7 +282,7 @@ impl LoadBalancer {
     /// The target will receive the traffic from the services.
     /// The target is identified by its IP address.
     pub fn add_target(&mut self, ip: &str) {
-        tracing::debug!("Adding target {}", ip);
+        tracing::debug!("Recording desired target {}", ip);
         self.targets.push(ip.to_string());
     }
 
@@ -512,26 +515,41 @@ impl LoadBalancer {
     ) -> Vec<TargetReconcileAction> {
         let mut actions = Vec::new();
 
+        let desired_targets: HashSet<String> =
+            self.targets.iter().map(|ip| normalize_ip(ip)).collect();
+        let current_targets: HashSet<String> = hcloud_balancer
+            .targets
+            .iter()
+            .filter_map(|target| {
+                target
+                    .ip
+                    .as_ref()
+                    .map(|target_ip| normalize_ip(&target_ip.ip))
+            })
+            .collect();
+
+        tracing::debug!(
+            desired_targets = ?desired_targets,
+            current_targets = ?current_targets,
+            "Planning target reconciliation actions"
+        );
+
         for target in &hcloud_balancer.targets {
             let Some(target_ip) = target.ip.clone() else {
+                tracing::debug!(target = ?target, "Skipping non-IP target while planning");
                 continue;
             };
-            if !self.targets.contains(&target_ip.ip) {
+            let normalized_target_ip = normalize_ip(&target_ip.ip);
+            if !desired_targets.contains(&normalized_target_ip) {
                 actions.push(TargetReconcileAction::Remove {
                     target_ip: target_ip.ip,
                 });
             }
         }
 
-        for ip in &self.targets {
-            if !hcloud_balancer
-                .targets
-                .iter()
-                .any(|target| target.ip.as_ref().map(|target_ip| target_ip.ip.as_str()) == Some(ip))
-            {
-                actions.push(TargetReconcileAction::Add {
-                    target_ip: ip.clone(),
-                });
+        for ip in desired_targets {
+            if !current_targets.contains(&ip) {
+                actions.push(TargetReconcileAction::Add { target_ip: ip });
             }
         }
 
@@ -898,6 +916,10 @@ impl From<LBAlgorithm> for LoadBalancerAlgorithm {
         };
         Self { r#type }
     }
+}
+
+fn normalize_ip(ip: &str) -> String {
+    ip.split('/').next().unwrap_or(ip).to_string()
 }
 
 #[cfg(test)]
