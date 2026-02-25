@@ -48,6 +48,7 @@ jobs:
           version: latest
       - name: Build Helm chart
         run: |
+          helm package --app-version "${{ github.ref_name }}" --dependency-update ./helm
           helm show chart *.tgz
           helm registry login -u ${{ github.actor }} -p ${{ secrets.GITHUB_TOKEN }} ghcr.io
           helm push *.tgz oci://ghcr.io/forkline/helm-charts
