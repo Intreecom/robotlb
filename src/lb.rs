@@ -83,7 +83,7 @@ impl HcloudLoadBalancerApi for LiveHcloudLoadBalancerApi {
             &self.hcloud_config,
             UpdateServiceParams {
                 id: load_balancer_id,
-                body: Some(service),
+                body: service,
             },
         )
         .await?;
@@ -95,7 +95,7 @@ impl HcloudLoadBalancerApi for LiveHcloudLoadBalancerApi {
             &self.hcloud_config,
             DeleteServiceParams {
                 id: load_balancer_id,
-                delete_service_request: Some(DeleteServiceRequest { listen_port }),
+                delete_service_request: DeleteServiceRequest { listen_port },
             },
         )
         .await?;
@@ -111,7 +111,7 @@ impl HcloudLoadBalancerApi for LiveHcloudLoadBalancerApi {
             &self.hcloud_config,
             AddServiceParams {
                 id: load_balancer_id,
-                body: Some(service),
+                body: service,
             },
         )
         .await?;
@@ -123,12 +123,12 @@ impl HcloudLoadBalancerApi for LiveHcloudLoadBalancerApi {
             &self.hcloud_config,
             RemoveTargetParams {
                 id: load_balancer_id,
-                remove_target_request: Some(RemoveTargetRequest {
+                remove_target_request: RemoveTargetRequest {
                     ip: Some(Box::new(hcloud::models::LoadBalancerTargetIp {
                         ip: target_ip,
                     })),
                     ..Default::default()
-                }),
+                },
             },
         )
         .await?;
@@ -140,12 +140,12 @@ impl HcloudLoadBalancerApi for LiveHcloudLoadBalancerApi {
             &self.hcloud_config,
             AddTargetParams {
                 id: load_balancer_id,
-                body: Some(LoadBalancerAddTarget {
+                body: LoadBalancerAddTarget {
                     ip: Some(Box::new(hcloud::models::LoadBalancerTargetIp {
                         ip: target_ip,
                     })),
                     ..Default::default()
-                }),
+                },
             },
         )
         .await?;
@@ -161,7 +161,7 @@ impl HcloudLoadBalancerApi for LiveHcloudLoadBalancerApi {
             &self.hcloud_config,
             ChangeAlgorithmParams {
                 id: load_balancer_id,
-                body: Some(algorithm),
+                body: algorithm,
             },
         )
         .await?;
@@ -173,9 +173,9 @@ impl HcloudLoadBalancerApi for LiveHcloudLoadBalancerApi {
             &self.hcloud_config,
             ChangeTypeOfLoadBalancerParams {
                 id: load_balancer_id,
-                change_type_of_load_balancer_request: Some(ChangeTypeOfLoadBalancerRequest {
+                change_type_of_load_balancer_request: ChangeTypeOfLoadBalancerRequest {
                     load_balancer_type: balancer_type,
-                }),
+                },
             },
         )
         .await?;
@@ -492,11 +492,10 @@ impl LoadBalancer {
                     &self.hcloud_config,
                     DetachLoadBalancerFromNetworkParams {
                         id: hcloud_balancer.id,
-                        detach_load_balancer_from_network_request: Some(
+                        detach_load_balancer_from_network_request:
                             DetachLoadBalancerFromNetworkRequest {
                                 network: private_net_id,
                             },
-                        ),
                     },
                 )
                 .await?;
@@ -511,12 +510,11 @@ impl LoadBalancer {
                 &self.hcloud_config,
                 AttachLoadBalancerToNetworkParams {
                     id: hcloud_balancer.id,
-                    attach_load_balancer_to_network_request: Some(
-                        AttachLoadBalancerToNetworkRequest {
-                            ip: self.private_ip.clone(),
-                            network: network_id,
-                        },
-                    ),
+                    attach_load_balancer_to_network_request: AttachLoadBalancerToNetworkRequest {
+                        ip: self.private_ip.clone(),
+                        ip_range: None,
+                        network: network_id,
+                    },
                 },
             )
             .await?;
@@ -541,9 +539,9 @@ impl LoadBalancer {
                 &self.hcloud_config,
                 DeleteServiceParams {
                     id: hcloud_balancer.id,
-                    delete_service_request: Some(DeleteServiceRequest {
+                    delete_service_request: DeleteServiceRequest {
                         listen_port: service.listen_port,
-                    }),
+                    },
                 },
             )
             .await?;
@@ -555,10 +553,10 @@ impl LoadBalancer {
                     &self.hcloud_config,
                     RemoveTargetParams {
                         id: hcloud_balancer.id,
-                        remove_target_request: Some(RemoveTargetRequest {
+                        remove_target_request: RemoveTargetRequest {
                             ip: Some(target_ip),
                             ..Default::default()
-                        }),
+                        },
                     },
                 )
                 .await?;
@@ -616,7 +614,7 @@ impl LoadBalancer {
         let response = hcloud::apis::load_balancers_api::create_load_balancer(
             &self.hcloud_config,
             hcloud::apis::load_balancers_api::CreateLoadBalancerParams {
-                create_load_balancer_request: Some(hcloud::models::CreateLoadBalancerRequest {
+                create_load_balancer_request: hcloud::models::CreateLoadBalancerRequest {
                     algorithm: Some(Box::new(self.algorithm.clone())),
                     labels: None,
                     load_balancer_type: self.balancer_type.clone(),
@@ -627,7 +625,7 @@ impl LoadBalancer {
                     public_interface: Some(true),
                     services: Some(vec![]),
                     targets: Some(vec![]),
-                }),
+                },
             },
         )
         .await;
