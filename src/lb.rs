@@ -124,7 +124,9 @@ impl HcloudLoadBalancerApi for LiveHcloudLoadBalancerApi {
             RemoveTargetParams {
                 id: load_balancer_id,
                 remove_target_request: Some(RemoveTargetRequest {
-                    ip: Some(Box::new(hcloud::models::LoadBalancerTargetIp { ip: target_ip })),
+                    ip: Some(Box::new(hcloud::models::LoadBalancerTargetIp {
+                        ip: target_ip,
+                    })),
                     ..Default::default()
                 }),
             },
@@ -139,7 +141,9 @@ impl HcloudLoadBalancerApi for LiveHcloudLoadBalancerApi {
             AddTargetParams {
                 id: load_balancer_id,
                 body: Some(LoadBalancerAddTarget {
-                    ip: Some(Box::new(hcloud::models::LoadBalancerTargetIp { ip: target_ip })),
+                    ip: Some(Box::new(hcloud::models::LoadBalancerTargetIp {
+                        ip: target_ip,
+                    })),
                     ..Default::default()
                 }),
             },
@@ -807,13 +811,27 @@ mod tests {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     enum ApiCall {
-        UpdateService { listen_port: i32, destination_port: i32 },
-        DeleteService { listen_port: i32 },
-        AddService { listen_port: i32, destination_port: i32 },
-        RemoveTarget { ip: String },
-        AddTarget { ip: String },
+        UpdateService {
+            listen_port: i32,
+            destination_port: i32,
+        },
+        DeleteService {
+            listen_port: i32,
+        },
+        AddService {
+            listen_port: i32,
+            destination_port: i32,
+        },
+        RemoveTarget {
+            ip: String,
+        },
+        AddTarget {
+            ip: String,
+        },
         ChangeAlgorithm,
-        ChangeType { balancer_type: String },
+        ChangeType {
+            balancer_type: String,
+        },
     }
 
     #[derive(Default)]
