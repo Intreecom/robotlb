@@ -89,3 +89,38 @@ impl FromStr for LabelFilter {
         Ok(Self { rules })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::LabelFilter;
+    use std::{collections::BTreeMap, str::FromStr};
+
+    #[test]
+    fn matches_combined_rules() {
+        let filter = LabelFilter::from_str("role=worker,zone!=eu-west,arch,!drain").unwrap();
+        let labels = BTreeMap::from([
+            ("role".to_string(), "worker".to_string()),
+            ("zone".to_string(), "eu-central".to_string()),
+            ("arch".to_string(), "amd64".to_string()),
+        ]);
+
+        assert!(filter.check(&labels));
+    }
+
+    #[test]
+    fn rejects_when_not_equal_rule_is_violated() {
+        let filter = LabelFilter::from_str("zone!=eu-west").unwrap();
+        let labels = BTreeMap::from([("zone".to_string(), "eu-west".to_string())]);
+
+        assert!(!filter.check(&labels));
+    }
+
+    #[test]
+    fn rejects_invalid_rule_shape() {
+        let error = LabelFilter::from_str("role=worker=extra").unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "Cannot parse node filter: role=worker=extra"
+        );
+    }
+}

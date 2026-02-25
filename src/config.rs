@@ -72,3 +72,69 @@ pub struct OperatorConfig {
     #[arg(long, env = "ROBOTLB_LOG_LEVEL", default_value = "INFO")]
     pub log_level: LevelFilter,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::OperatorConfig;
+    use clap::Parser;
+    use tracing::level_filters::LevelFilter;
+
+    #[test]
+    fn parses_defaults_from_cli() {
+        let config = OperatorConfig::try_parse_from(["robotlb", "--hcloud-token", "token"])
+            .expect("config should parse");
+
+        assert_eq!(config.hcloud_token, "token");
+        assert_eq!(config.default_network, None);
+        assert!(config.dynamic_node_selector);
+        assert_eq!(config.default_lb_retries, 3);
+        assert_eq!(config.default_lb_timeout, 10);
+        assert_eq!(config.default_lb_interval, 15);
+        assert_eq!(config.default_lb_location, "hel1");
+        assert_eq!(config.default_balancer_type, "lb11");
+        assert_eq!(config.default_lb_algorithm, "least-connections");
+        assert!(!config.default_lb_proxy_mode_enabled);
+        assert!(!config.ipv6_ingress);
+        assert_eq!(config.log_level, LevelFilter::INFO);
+    }
+
+    #[test]
+    fn parses_explicit_overrides_from_cli() {
+        let config = OperatorConfig::try_parse_from([
+            "robotlb",
+            "--hcloud-token",
+            "token",
+            "--default-network",
+            "prod-net",
+            "--default-lb-retries",
+            "5",
+            "--default-lb-timeout",
+            "7",
+            "--default-lb-interval",
+            "9",
+            "--default-lb-location",
+            "nbg1",
+            "--default-balancer-type",
+            "lb21",
+            "--default-lb-algorithm",
+            "round-robin",
+            "--default-lb-proxy-mode-enabled",
+            "--ipv6-ingress",
+            "--log-level",
+            "DEBUG",
+        ])
+        .expect("config should parse");
+
+        assert_eq!(config.default_network.as_deref(), Some("prod-net"));
+        assert!(config.dynamic_node_selector);
+        assert_eq!(config.default_lb_retries, 5);
+        assert_eq!(config.default_lb_timeout, 7);
+        assert_eq!(config.default_lb_interval, 9);
+        assert_eq!(config.default_lb_location, "nbg1");
+        assert_eq!(config.default_balancer_type, "lb21");
+        assert_eq!(config.default_lb_algorithm, "round-robin");
+        assert!(config.default_lb_proxy_mode_enabled);
+        assert!(config.ipv6_ingress);
+        assert_eq!(config.log_level, LevelFilter::DEBUG);
+    }
+}
