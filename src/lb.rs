@@ -21,6 +21,7 @@ use kube::ResourceExt;
 use std::{collections::HashMap, str::FromStr};
 
 use crate::{
+    config::OperatorConfig,
     consts,
     error::{RobotLBError, RobotLBResult},
     CurrentContext,
@@ -60,6 +61,20 @@ pub struct LoadBalancer {
     pub hcloud_config: HcloudConfig,
 }
 
+#[derive(Debug)]
+struct ParsedLoadBalancerConfig {
+    name: String,
+    private_ip: Option<String>,
+    balancer_type: String,
+    check_interval: i32,
+    timeout: i32,
+    retries: i32,
+    location: String,
+    proxy_mode: bool,
+    network_name: Option<String>,
+    algorithm: LoadBalancerAlgorithm,
+}
+
 impl LoadBalancer {
     /// Create a new `LoadBalancer` instance from a Kubernetes service
     /// and the current context.
@@ -68,87 +83,19 @@ impl LoadBalancer {
     /// If some of the required information is missing, the method will
     /// try to use the default values from the context.
     pub fn try_from_svc(svc: &Service, context: &CurrentContext) -> RobotLBResult<Self> {
-        let retries = svc
-            .annotations()
-            .get(consts::LB_RETRIES_ANN_NAME)
-            .map(String::as_str)
-            .map(i32::from_str)
-            .transpose()?
-            .unwrap_or(context.config.default_lb_retries);
-
-        let timeout = svc
-            .annotations()
-            .get(consts::LB_TIMEOUT_ANN_NAME)
-            .map(String::as_str)
-            .map(i32::from_str)
-            .transpose()?
-            .unwrap_or(context.config.default_lb_timeout);
-
-        let check_interval = svc
-            .annotations()
-            .get(consts::LB_CHECK_INTERVAL_ANN_NAME)
-            .map(String::as_str)
-            .map(i32::from_str)
-            .transpose()?
-            .unwrap_or(context.config.default_lb_interval);
-
-        let proxy_mode = svc
-            .annotations()
-            .get(consts::LB_PROXY_MODE_LABEL_NAME)
-            .map(String::as_str)
-            .map(bool::from_str)
-            .transpose()?
-            .unwrap_or(context.config.default_lb_proxy_mode_enabled);
-
-        let location = svc
-            .annotations()
-            .get(consts::LB_LOCATION_LABEL_NAME)
-            .cloned()
-            .unwrap_or_else(|| context.config.default_lb_location.clone());
-
-        let balancer_type = svc
-            .annotations()
-            .get(consts::LB_BALANCER_TYPE_LABEL_NAME)
-            .cloned()
-            .unwrap_or_else(|| context.config.default_balancer_type.clone());
-
-        let algorithm = svc
-            .annotations()
-            .get(consts::LB_ALGORITHM_LABEL_NAME)
-            .map(String::as_str)
-            .or(Some(&context.config.default_lb_algorithm))
-            .map(LBAlgorithm::from_str)
-            .transpose()?
-            .unwrap_or(LBAlgorithm::LeastConnections);
-
-        let network_name = svc
-            .annotations()
-            .get(consts::LB_NETWORK_LABEL_NAME)
-            .or(context.config.default_network.as_ref())
-            .cloned();
-
-        let name = svc
-            .annotations()
-            .get(consts::LB_NAME_LABEL_NAME)
-            .cloned()
-            .unwrap_or_else(|| svc.name_any());
-
-        let private_ip = svc
-            .annotations()
-            .get(consts::LB_PRIVATE_IP_LABEL_NAME)
-            .cloned();
+        let parsed = parse_load_balancer_config(svc, &context.config)?;
 
         Ok(Self {
-            name,
-            private_ip,
-            balancer_type,
-            check_interval,
-            timeout,
-            retries,
-            location,
-            proxy_mode,
-            network_name,
-            algorithm: algorithm.into(),
+            name: parsed.name,
+            private_ip: parsed.private_ip,
+            balancer_type: parsed.balancer_type,
+            check_interval: parsed.check_interval,
+            timeout: parsed.timeout,
+            retries: parsed.retries,
+            location: parsed.location,
+            proxy_mode: parsed.proxy_mode,
+            network_name: parsed.network_name,
+            algorithm: parsed.algorithm,
             services: HashMap::default(),
             targets: Vec::default(),
             hcloud_config: context.hcloud_config.clone(),
@@ -625,6 +572,201 @@ impl LoadBalancer {
         }
 
         Ok(response.networks.into_iter().next())
+    }
+}
+
+fn parse_load_balancer_config(
+    svc: &Service,
+    config: &OperatorConfig,
+) -> RobotLBResult<ParsedLoadBalancerConfig> {
+    let retries = svc
+        .annotations()
+        .get(consts::LB_RETRIES_ANN_NAME)
+        .map(String::as_str)
+        .map(i32::from_str)
+        .transpose()?
+        .unwrap_or(config.default_lb_retries);
+
+    let timeout = svc
+        .annotations()
+        .get(consts::LB_TIMEOUT_ANN_NAME)
+        .map(String::as_str)
+        .map(i32::from_str)
+        .transpose()?
+        .unwrap_or(config.default_lb_timeout);
+
+    let check_interval = svc
+        .annotations()
+        .get(consts::LB_CHECK_INTERVAL_ANN_NAME)
+        .map(String::as_str)
+        .map(i32::from_str)
+        .transpose()?
+        .unwrap_or(config.default_lb_interval);
+
+    let proxy_mode = svc
+        .annotations()
+        .get(consts::LB_PROXY_MODE_LABEL_NAME)
+        .map(String::as_str)
+        .map(bool::from_str)
+        .transpose()?
+        .unwrap_or(config.default_lb_proxy_mode_enabled);
+
+    let location = svc
+        .annotations()
+        .get(consts::LB_LOCATION_LABEL_NAME)
+        .cloned()
+        .unwrap_or_else(|| config.default_lb_location.clone());
+
+    let balancer_type = svc
+        .annotations()
+        .get(consts::LB_BALANCER_TYPE_LABEL_NAME)
+        .cloned()
+        .unwrap_or_else(|| config.default_balancer_type.clone());
+
+    let algorithm = svc
+        .annotations()
+        .get(consts::LB_ALGORITHM_LABEL_NAME)
+        .map(String::as_str)
+        .or(Some(&config.default_lb_algorithm))
+        .map(LBAlgorithm::from_str)
+        .transpose()?
+        .unwrap_or(LBAlgorithm::LeastConnections);
+
+    let network_name = svc
+        .annotations()
+        .get(consts::LB_NETWORK_LABEL_NAME)
+        .or(config.default_network.as_ref())
+        .cloned();
+
+    let name = svc
+        .annotations()
+        .get(consts::LB_NAME_LABEL_NAME)
+        .cloned()
+        .unwrap_or_else(|| svc.name_any());
+
+    let private_ip = svc
+        .annotations()
+        .get(consts::LB_PRIVATE_IP_LABEL_NAME)
+        .cloned();
+
+    Ok(ParsedLoadBalancerConfig {
+        name,
+        private_ip,
+        balancer_type,
+        check_interval,
+        timeout,
+        retries,
+        location,
+        proxy_mode,
+        network_name,
+        algorithm: algorithm.into(),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_load_balancer_config;
+    use crate::{config::OperatorConfig, consts};
+    use k8s_openapi::{api::core::v1::Service, apimachinery::pkg::apis::meta::v1::ObjectMeta};
+    use std::collections::BTreeMap;
+    use tracing::level_filters::LevelFilter;
+
+    fn base_config() -> OperatorConfig {
+        OperatorConfig {
+            hcloud_token: "token".to_string(),
+            default_network: Some("default-net".to_string()),
+            dynamic_node_selector: true,
+            default_lb_retries: 3,
+            default_lb_timeout: 10,
+            default_lb_interval: 15,
+            default_lb_location: "hel1".to_string(),
+            default_balancer_type: "lb11".to_string(),
+            default_lb_algorithm: "least-connections".to_string(),
+            default_lb_proxy_mode_enabled: false,
+            ipv6_ingress: false,
+            log_level: LevelFilter::INFO,
+        }
+    }
+
+    fn service_with_annotations(
+        annotations: impl IntoIterator<Item = (&'static str, &'static str)>,
+    ) -> Service {
+        let annotation_map = annotations
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect::<BTreeMap<_, _>>();
+
+        Service {
+            metadata: ObjectMeta {
+                name: Some("svc-name".to_string()),
+                annotations: Some(annotation_map),
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn uses_defaults_when_annotations_are_missing() {
+        let config = base_config();
+        let svc = service_with_annotations([]);
+
+        let parsed = parse_load_balancer_config(&svc, &config).expect("parse should succeed");
+
+        assert_eq!(parsed.name, "svc-name");
+        assert_eq!(parsed.retries, 3);
+        assert_eq!(parsed.timeout, 10);
+        assert_eq!(parsed.check_interval, 15);
+        assert_eq!(parsed.location, "hel1");
+        assert_eq!(parsed.balancer_type, "lb11");
+        assert_eq!(parsed.network_name.as_deref(), Some("default-net"));
+        assert!(!parsed.proxy_mode);
+    }
+
+    #[test]
+    fn parses_annotations_into_load_balancer_config() {
+        let mut config = base_config();
+        config.default_network = None;
+        let svc = service_with_annotations([
+            (consts::LB_NAME_LABEL_NAME, "custom-lb"),
+            (consts::LB_RETRIES_ANN_NAME, "5"),
+            (consts::LB_TIMEOUT_ANN_NAME, "8"),
+            (consts::LB_CHECK_INTERVAL_ANN_NAME, "20"),
+            (consts::LB_PROXY_MODE_LABEL_NAME, "true"),
+            (consts::LB_LOCATION_LABEL_NAME, "nbg1"),
+            (consts::LB_BALANCER_TYPE_LABEL_NAME, "lb31"),
+            (consts::LB_ALGORITHM_LABEL_NAME, "round-robin"),
+            (consts::LB_NETWORK_LABEL_NAME, "private-net"),
+            (consts::LB_PRIVATE_IP_LABEL_NAME, "10.10.0.5"),
+        ]);
+
+        let parsed = parse_load_balancer_config(&svc, &config).expect("parse should succeed");
+
+        assert_eq!(parsed.name, "custom-lb");
+        assert_eq!(parsed.retries, 5);
+        assert_eq!(parsed.timeout, 8);
+        assert_eq!(parsed.check_interval, 20);
+        assert_eq!(parsed.location, "nbg1");
+        assert_eq!(parsed.balancer_type, "lb31");
+        assert_eq!(parsed.network_name.as_deref(), Some("private-net"));
+        assert_eq!(parsed.private_ip.as_deref(), Some("10.10.0.5"));
+        assert!(parsed.proxy_mode);
+        assert_eq!(
+            parsed.algorithm.r#type,
+            hcloud::models::load_balancer_algorithm::Type::RoundRobin
+        );
+    }
+
+    #[test]
+    fn returns_error_for_invalid_algorithm_annotation() {
+        let config = base_config();
+        let svc = service_with_annotations([(consts::LB_ALGORITHM_LABEL_NAME, "weighted")]);
+
+        let result = parse_load_balancer_config(&svc, &config);
+        assert!(matches!(
+            result,
+            Err(crate::error::RobotLBError::UnknownLBAlgorithm)
+        ));
     }
 }
 
