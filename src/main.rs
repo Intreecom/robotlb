@@ -23,7 +23,7 @@ use futures::StreamExt;
 use hcloud::apis::configuration::Configuration as HCloudConfig;
 use k8s_openapi::{
     api::core::v1::{Node, Pod, Service},
-    serde_json::json,
+    serde_json::{json, Value},
 };
 use kube::{
     api::{ListParams, PatchParams},
@@ -199,6 +199,93 @@ fn derive_services(svc: &Service) -> Vec<(i32, i32)> {
     services
 }
 
+async fn discover_target_nodes(
+    svc: &Arc<Service>,
+    context: &Arc<CurrentContext>,
+) -> RobotLBResult<Vec<Node>> {
+    if context.config.dynamic_node_selector {
+        get_nodes_dynamically(svc, context).await
+    } else {
+        get_nodes_by_selector(svc, context).await
+    }
+}
+
+fn apply_desired_state(
+    lb: &mut LoadBalancer,
+    desired_targets: Vec<String>,
+    desired_services: Vec<(i32, i32)>,
+) {
+    for target in desired_targets {
+        lb.add_target(&target);
+    }
+
+    for (listen_port, target_port) in desired_services {
+        lb.add_service(listen_port, target_port);
+    }
+}
+
+fn build_ingress(hcloud_lb: &hcloud::models::LoadBalancer, enable_ipv6: bool) -> Vec<Value> {
+    let mut ingress = vec![];
+
+    let dns_ipv4 = hcloud_lb.public_net.ipv4.dns_ptr.clone().flatten();
+    let ipv4 = hcloud_lb.public_net.ipv4.ip.clone().flatten();
+    let dns_ipv6 = hcloud_lb.public_net.ipv6.dns_ptr.clone().flatten();
+    let ipv6 = hcloud_lb.public_net.ipv6.ip.clone().flatten();
+
+    if let Some(ipv4) = &ipv4 {
+        ingress.push(json!({
+            "ip": ipv4,
+            "dns": dns_ipv4,
+            "ip_mode": "VIP"
+        }));
+    }
+
+    if enable_ipv6 {
+        if let Some(ipv6) = &ipv6 {
+            ingress.push(json!({
+                "ip": ipv6,
+                "dns": dns_ipv6,
+                "ip_mode": "VIP"
+            }));
+        }
+    }
+
+    ingress
+}
+
+async fn patch_ingress_status(
+    svc: &Service,
+    context: &CurrentContext,
+    ingress: Vec<Value>,
+) -> RobotLBResult<()> {
+    if ingress.is_empty() {
+        return Ok(());
+    }
+
+    let svc_api = kube::Api::<Service>::namespaced(
+        context.client.clone(),
+        svc.namespace()
+            .unwrap_or_else(|| context.client.default_namespace().to_string())
+            .as_str(),
+    );
+
+    svc_api
+        .patch_status(
+            svc.name_any().as_str(),
+            &PatchParams::default(),
+            &kube::api::Patch::Merge(json!({
+                "status" :{
+                    "loadBalancer": {
+                        "ingress": ingress
+                    }
+                }
+            })),
+        )
+        .await?;
+
+    Ok(())
+}
+
 /// Reconcile the service.
 /// This function is called by the controller for each service.
 /// It will create or update the load balancer based on the service.
@@ -310,69 +397,17 @@ pub async fn reconcile_load_balancer(
     svc: Arc<Service>,
     context: Arc<CurrentContext>,
 ) -> RobotLBResult<Action> {
-    let node_ip_type = node_ip_type(&lb);
+    let desired_ip_type = node_ip_type(&lb);
 
-    let nodes = if context.config.dynamic_node_selector {
-        get_nodes_dynamically(&svc, &context).await?
-    } else {
-        get_nodes_by_selector(&svc, &context).await?
-    };
-
-    for target in derive_targets(nodes, node_ip_type) {
-        lb.add_target(&target);
-    }
-
-    for (listen_port, target_port) in derive_services(&svc) {
-        lb.add_service(listen_port, target_port);
-    }
-
-    let svc_api = kube::Api::<Service>::namespaced(
-        context.client.clone(),
-        svc.namespace()
-            .unwrap_or_else(|| context.client.default_namespace().to_string())
-            .as_str(),
-    );
+    let nodes = discover_target_nodes(&svc, &context).await?;
+    let desired_targets = derive_targets(nodes, desired_ip_type);
+    let desired_services = derive_services(&svc);
+    apply_desired_state(&mut lb, desired_targets, desired_services);
 
     let hcloud_lb = lb.reconcile().await?;
 
-    let mut ingress = vec![];
-
-    let dns_ipv4 = hcloud_lb.public_net.ipv4.dns_ptr.flatten();
-    let ipv4 = hcloud_lb.public_net.ipv4.ip.flatten();
-    let dns_ipv6 = hcloud_lb.public_net.ipv6.dns_ptr.flatten();
-    let ipv6 = hcloud_lb.public_net.ipv6.ip.flatten();
-    if let Some(ipv4) = &ipv4 {
-        ingress.push(json!({
-            "ip": ipv4,
-            "dns": dns_ipv4,
-            "ip_mode": "VIP"
-        }));
-    }
-    if context.config.ipv6_ingress {
-        if let Some(ipv6) = &ipv6 {
-            ingress.push(json!({
-                "ip": ipv6,
-                "dns": dns_ipv6,
-                "ip_mode": "VIP"
-            }));
-        }
-    }
-
-    if !ingress.is_empty() {
-        svc_api
-            .patch_status(
-                svc.name_any().as_str(),
-                &PatchParams::default(),
-                &kube::api::Patch::Merge(json!({
-                    "status" :{
-                        "loadBalancer": {
-                            "ingress": ingress
-                        }
-                    }
-                })),
-            )
-            .await?;
-    }
+    let ingress = build_ingress(&hcloud_lb, context.config.ipv6_ingress);
+    patch_ingress_status(&svc, &context, ingress).await?;
 
     Ok(Action::requeue(Duration::from_secs(30)))
 }
