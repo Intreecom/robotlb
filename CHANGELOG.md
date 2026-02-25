@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0](https://github.com/forkline/robotlb/tree/0.4.0) - 2026-02-25
+
+### Added
+
+- ha: Enable leader election for safe multi-replica runs ([9c71b96](https://github.com/forkline/robotlb/commit/9c71b9635ce3f24ae7a718f3c67a5f1eabf01559))
+
 ## [0.3.2](https://github.com/forkline/robotlb/tree/0.3.2) - 2026-02-25
 
 ### Fixed
