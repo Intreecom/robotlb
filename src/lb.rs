@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use hcloud::{
     apis::{
         configuration::Configuration as HcloudConfig,
@@ -36,6 +37,146 @@ pub struct LBService {
 enum LBAlgorithm {
     RoundRobin,
     LeastConnections,
+}
+
+#[async_trait]
+trait HcloudLoadBalancerApi {
+    async fn update_service(
+        &self,
+        load_balancer_id: i64,
+        service: UpdateLoadBalancerService,
+    ) -> RobotLBResult<()>;
+
+    async fn delete_service(&self, load_balancer_id: i64, listen_port: i32) -> RobotLBResult<()>;
+
+    async fn add_service(
+        &self,
+        load_balancer_id: i64,
+        service: LoadBalancerService,
+    ) -> RobotLBResult<()>;
+
+    async fn remove_target(&self, load_balancer_id: i64, target_ip: String) -> RobotLBResult<()>;
+
+    async fn add_target(&self, load_balancer_id: i64, target_ip: String) -> RobotLBResult<()>;
+
+    async fn change_algorithm(
+        &self,
+        load_balancer_id: i64,
+        algorithm: LoadBalancerAlgorithm,
+    ) -> RobotLBResult<()>;
+
+    async fn change_type(&self, load_balancer_id: i64, balancer_type: String) -> RobotLBResult<()>;
+}
+
+struct LiveHcloudLoadBalancerApi {
+    hcloud_config: HcloudConfig,
+}
+
+#[async_trait]
+impl HcloudLoadBalancerApi for LiveHcloudLoadBalancerApi {
+    async fn update_service(
+        &self,
+        load_balancer_id: i64,
+        service: UpdateLoadBalancerService,
+    ) -> RobotLBResult<()> {
+        hcloud::apis::load_balancers_api::update_service(
+            &self.hcloud_config,
+            UpdateServiceParams {
+                id: load_balancer_id,
+                body: Some(service),
+            },
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn delete_service(&self, load_balancer_id: i64, listen_port: i32) -> RobotLBResult<()> {
+        hcloud::apis::load_balancers_api::delete_service(
+            &self.hcloud_config,
+            DeleteServiceParams {
+                id: load_balancer_id,
+                delete_service_request: Some(DeleteServiceRequest { listen_port }),
+            },
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn add_service(
+        &self,
+        load_balancer_id: i64,
+        service: LoadBalancerService,
+    ) -> RobotLBResult<()> {
+        hcloud::apis::load_balancers_api::add_service(
+            &self.hcloud_config,
+            AddServiceParams {
+                id: load_balancer_id,
+                body: Some(service),
+            },
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn remove_target(&self, load_balancer_id: i64, target_ip: String) -> RobotLBResult<()> {
+        hcloud::apis::load_balancers_api::remove_target(
+            &self.hcloud_config,
+            RemoveTargetParams {
+                id: load_balancer_id,
+                remove_target_request: Some(RemoveTargetRequest {
+                    ip: Some(Box::new(hcloud::models::LoadBalancerTargetIp { ip: target_ip })),
+                    ..Default::default()
+                }),
+            },
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn add_target(&self, load_balancer_id: i64, target_ip: String) -> RobotLBResult<()> {
+        hcloud::apis::load_balancers_api::add_target(
+            &self.hcloud_config,
+            AddTargetParams {
+                id: load_balancer_id,
+                body: Some(LoadBalancerAddTarget {
+                    ip: Some(Box::new(hcloud::models::LoadBalancerTargetIp { ip: target_ip })),
+                    ..Default::default()
+                }),
+            },
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn change_algorithm(
+        &self,
+        load_balancer_id: i64,
+        algorithm: LoadBalancerAlgorithm,
+    ) -> RobotLBResult<()> {
+        hcloud::apis::load_balancers_api::change_algorithm(
+            &self.hcloud_config,
+            ChangeAlgorithmParams {
+                id: load_balancer_id,
+                body: Some(algorithm),
+            },
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn change_type(&self, load_balancer_id: i64, balancer_type: String) -> RobotLBResult<()> {
+        hcloud::apis::load_balancers_api::change_type_of_load_balancer(
+            &self.hcloud_config,
+            ChangeTypeOfLoadBalancerParams {
+                id: load_balancer_id,
+                change_type_of_load_balancer_request: Some(ChangeTypeOfLoadBalancerRequest {
+                    load_balancer_type: balancer_type,
+                }),
+            },
+        )
+        .await?;
+        Ok(())
+    }
 }
 
 /// Struct representing a load balancer
@@ -120,12 +261,15 @@ impl LoadBalancer {
     /// Reconcile the load balancer to match the desired configuration.
     #[tracing::instrument(skip(self), fields(lb_name=self.name))]
     pub async fn reconcile(&self) -> RobotLBResult<hcloud::models::LoadBalancer> {
+        let api = LiveHcloudLoadBalancerApi {
+            hcloud_config: self.hcloud_config.clone(),
+        };
         let hcloud_balancer = self.get_or_create_hcloud_lb().await?;
-        self.reconcile_algorithm(&hcloud_balancer).await?;
-        self.reconcile_lb_type(&hcloud_balancer).await?;
+        self.reconcile_algorithm(&hcloud_balancer, &api).await?;
+        self.reconcile_lb_type(&hcloud_balancer, &api).await?;
         self.reconcile_network(&hcloud_balancer).await?;
-        self.reconcile_services(&hcloud_balancer).await?;
-        self.reconcile_targets(&hcloud_balancer).await?;
+        self.reconcile_services(&hcloud_balancer, &api).await?;
+        self.reconcile_targets(&hcloud_balancer, &api).await?;
         Ok(hcloud_balancer)
     }
 
@@ -136,6 +280,7 @@ impl LoadBalancer {
     async fn reconcile_services(
         &self,
         hcloud_balancer: &hcloud::models::LoadBalancer,
+        api: &impl HcloudLoadBalancerApi,
     ) -> RobotLBResult<()> {
         for service in &hcloud_balancer.services {
             // Here we check that all the services are configured correctly.
@@ -158,27 +303,26 @@ impl LoadBalancer {
                     "Desired service configuration for port {} does not match current configuration. Updating ...",
                     service.listen_port,
                 );
-                hcloud::apis::load_balancers_api::update_service(
-                        &self.hcloud_config,
-                    UpdateServiceParams {
-                        id: hcloud_balancer.id,
-                        body: Some(UpdateLoadBalancerService {
-                            http: None,
-                            protocol: Some(hcloud::models::update_load_balancer_service::Protocol::Tcp),
-                            listen_port: service.listen_port,
-                            destination_port: Some(*destination_port),
-                            proxyprotocol: Some(self.proxy_mode),
-                            health_check: Some(Box::new(
-                                hcloud::models::UpdateLoadBalancerServiceHealthCheck {
-                                    protocol: Some(hcloud::models::update_load_balancer_service_health_check::Protocol::Tcp),
-                                    http: None,
-                                    interval: Some(self.check_interval),
-                                    port: Some(*destination_port),
-                                    retries: Some(self.retries),
-                                    timeout: Some(self.timeout),
-                                },
-                            )),
-                        }),
+                api.update_service(
+                    hcloud_balancer.id,
+                    UpdateLoadBalancerService {
+                        http: None,
+                        protocol: Some(hcloud::models::update_load_balancer_service::Protocol::Tcp),
+                        listen_port: service.listen_port,
+                        destination_port: Some(*destination_port),
+                        proxyprotocol: Some(self.proxy_mode),
+                        health_check: Some(Box::new(
+                            hcloud::models::UpdateLoadBalancerServiceHealthCheck {
+                                protocol: Some(
+                                    hcloud::models::update_load_balancer_service_health_check::Protocol::Tcp,
+                                ),
+                                http: None,
+                                interval: Some(self.check_interval),
+                                port: Some(*destination_port),
+                                retries: Some(self.retries),
+                                timeout: Some(self.timeout),
+                            },
+                        )),
                     },
                 )
                 .await?;
@@ -188,16 +332,8 @@ impl LoadBalancer {
                     service.listen_port,
                     hcloud_balancer.name,
                 );
-                hcloud::apis::load_balancers_api::delete_service(
-                    &self.hcloud_config,
-                    DeleteServiceParams {
-                        id: hcloud_balancer.id,
-                        delete_service_request: Some(DeleteServiceRequest {
-                            listen_port: service.listen_port,
-                        }),
-                    },
-                )
-                .await?;
+                api.delete_service(hcloud_balancer.id, service.listen_port)
+                    .await?;
             }
         }
 
@@ -211,11 +347,9 @@ impl LoadBalancer {
                     "Found missing service. Adding service that listens for port {}",
                     listen_port
                 );
-                hcloud::apis::load_balancers_api::add_service(
-                    &self.hcloud_config,
-                AddServiceParams {
-                    id: hcloud_balancer.id,
-                    body: Some(LoadBalancerService {
+                api.add_service(
+                    hcloud_balancer.id,
+                    LoadBalancerService {
                         http: None,
                         listen_port: *listen_port,
                         destination_port: *destination_port,
@@ -230,10 +364,9 @@ impl LoadBalancer {
                             retries: self.retries,
                             timeout: self.timeout,
                         }),
-                    }),
-                },
-            )
-            .await?;
+                    },
+                )
+                .await?;
             }
         }
         Ok(())
@@ -246,6 +379,7 @@ impl LoadBalancer {
     async fn reconcile_targets(
         &self,
         hcloud_balancer: &hcloud::models::LoadBalancer,
+        api: &impl HcloudLoadBalancerApi,
     ) -> RobotLBResult<()> {
         for target in &hcloud_balancer.targets {
             let Some(target_ip) = target.ip.clone() else {
@@ -253,17 +387,7 @@ impl LoadBalancer {
             };
             if !self.targets.contains(&target_ip.ip) {
                 tracing::info!("Removing target {}", target_ip.ip);
-                hcloud::apis::load_balancers_api::remove_target(
-                    &self.hcloud_config,
-                    RemoveTargetParams {
-                        id: hcloud_balancer.id,
-                        remove_target_request: Some(RemoveTargetRequest {
-                            ip: Some(target_ip),
-                            ..Default::default()
-                        }),
-                    },
-                )
-                .await?;
+                api.remove_target(hcloud_balancer.id, target_ip.ip).await?;
             }
         }
 
@@ -274,19 +398,7 @@ impl LoadBalancer {
                 .any(|t| t.ip.as_ref().map(|i| i.ip.as_str()) == Some(ip))
             {
                 tracing::info!("Adding target {}", ip);
-                hcloud::apis::load_balancers_api::add_target(
-                    &self.hcloud_config,
-                    AddTargetParams {
-                        id: hcloud_balancer.id,
-                        body: Some(LoadBalancerAddTarget {
-                            ip: Some(Box::new(hcloud::models::LoadBalancerTargetIp {
-                                ip: ip.clone(),
-                            })),
-                            ..Default::default()
-                        }),
-                    },
-                )
-                .await?;
+                api.add_target(hcloud_balancer.id, ip.clone()).await?;
             }
         }
         Ok(())
@@ -298,6 +410,7 @@ impl LoadBalancer {
     async fn reconcile_algorithm(
         &self,
         hcloud_balancer: &hcloud::models::LoadBalancer,
+        api: &impl HcloudLoadBalancerApi,
     ) -> RobotLBResult<()> {
         if *hcloud_balancer.algorithm == self.algorithm.clone() {
             return Ok(());
@@ -307,14 +420,8 @@ impl LoadBalancer {
             hcloud_balancer.algorithm,
             self.algorithm
         );
-        hcloud::apis::load_balancers_api::change_algorithm(
-            &self.hcloud_config,
-            ChangeAlgorithmParams {
-                id: hcloud_balancer.id,
-                body: Some(self.algorithm.clone()),
-            },
-        )
-        .await?;
+        api.change_algorithm(hcloud_balancer.id, self.algorithm.clone())
+            .await?;
         Ok(())
     }
 
@@ -322,6 +429,7 @@ impl LoadBalancer {
     async fn reconcile_lb_type(
         &self,
         hcloud_balancer: &hcloud::models::LoadBalancer,
+        api: &impl HcloudLoadBalancerApi,
     ) -> RobotLBResult<()> {
         if hcloud_balancer.load_balancer_type.name == self.balancer_type {
             return Ok(());
@@ -331,16 +439,8 @@ impl LoadBalancer {
             hcloud_balancer.load_balancer_type.name,
             self.balancer_type
         );
-        hcloud::apis::load_balancers_api::change_type_of_load_balancer(
-            &self.hcloud_config,
-            ChangeTypeOfLoadBalancerParams {
-                id: hcloud_balancer.id,
-                change_type_of_load_balancer_request: Some(ChangeTypeOfLoadBalancerRequest {
-                    load_balancer_type: self.balancer_type.clone(),
-                }),
-            },
-        )
-        .await?;
+        api.change_type(hcloud_balancer.id, self.balancer_type.clone())
+            .await?;
         Ok(())
     }
 
@@ -688,11 +788,142 @@ impl From<LBAlgorithm> for LoadBalancerAlgorithm {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_load_balancer_config;
+    use super::{parse_load_balancer_config, HcloudLoadBalancerApi, LoadBalancer};
     use crate::{config::OperatorConfig, consts};
+    use async_trait::async_trait;
+    use hcloud::{
+        apis::configuration::Configuration as HcloudConfig,
+        models::{
+            LoadBalancerAlgorithm, LoadBalancerService, LoadBalancerServiceHealthCheck,
+            UpdateLoadBalancerService,
+        },
+    };
     use k8s_openapi::{api::core::v1::Service, apimachinery::pkg::apis::meta::v1::ObjectMeta};
-    use std::collections::BTreeMap;
+    use std::{
+        collections::{BTreeMap, HashMap},
+        sync::Mutex,
+    };
     use tracing::level_filters::LevelFilter;
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    enum ApiCall {
+        UpdateService { listen_port: i32, destination_port: i32 },
+        DeleteService { listen_port: i32 },
+        AddService { listen_port: i32, destination_port: i32 },
+        RemoveTarget { ip: String },
+        AddTarget { ip: String },
+        ChangeAlgorithm,
+        ChangeType { balancer_type: String },
+    }
+
+    #[derive(Default)]
+    struct MockHcloudApi {
+        calls: Mutex<Vec<ApiCall>>,
+    }
+
+    impl MockHcloudApi {
+        fn calls(&self) -> Vec<ApiCall> {
+            self.calls
+                .lock()
+                .expect("lock should not be poisoned")
+                .clone()
+        }
+    }
+
+    #[async_trait]
+    impl HcloudLoadBalancerApi for MockHcloudApi {
+        async fn update_service(
+            &self,
+            _load_balancer_id: i64,
+            service: UpdateLoadBalancerService,
+        ) -> crate::error::RobotLBResult<()> {
+            self.calls
+                .lock()
+                .expect("lock should not be poisoned")
+                .push(ApiCall::UpdateService {
+                    listen_port: service.listen_port,
+                    destination_port: service
+                        .destination_port
+                        .expect("destination port should be present"),
+                });
+            Ok(())
+        }
+
+        async fn delete_service(
+            &self,
+            _load_balancer_id: i64,
+            listen_port: i32,
+        ) -> crate::error::RobotLBResult<()> {
+            self.calls
+                .lock()
+                .expect("lock should not be poisoned")
+                .push(ApiCall::DeleteService { listen_port });
+            Ok(())
+        }
+
+        async fn add_service(
+            &self,
+            _load_balancer_id: i64,
+            service: LoadBalancerService,
+        ) -> crate::error::RobotLBResult<()> {
+            self.calls
+                .lock()
+                .expect("lock should not be poisoned")
+                .push(ApiCall::AddService {
+                    listen_port: service.listen_port,
+                    destination_port: service.destination_port,
+                });
+            Ok(())
+        }
+
+        async fn remove_target(
+            &self,
+            _load_balancer_id: i64,
+            target_ip: String,
+        ) -> crate::error::RobotLBResult<()> {
+            self.calls
+                .lock()
+                .expect("lock should not be poisoned")
+                .push(ApiCall::RemoveTarget { ip: target_ip });
+            Ok(())
+        }
+
+        async fn add_target(
+            &self,
+            _load_balancer_id: i64,
+            target_ip: String,
+        ) -> crate::error::RobotLBResult<()> {
+            self.calls
+                .lock()
+                .expect("lock should not be poisoned")
+                .push(ApiCall::AddTarget { ip: target_ip });
+            Ok(())
+        }
+
+        async fn change_algorithm(
+            &self,
+            _load_balancer_id: i64,
+            _algorithm: LoadBalancerAlgorithm,
+        ) -> crate::error::RobotLBResult<()> {
+            self.calls
+                .lock()
+                .expect("lock should not be poisoned")
+                .push(ApiCall::ChangeAlgorithm);
+            Ok(())
+        }
+
+        async fn change_type(
+            &self,
+            _load_balancer_id: i64,
+            balancer_type: String,
+        ) -> crate::error::RobotLBResult<()> {
+            self.calls
+                .lock()
+                .expect("lock should not be poisoned")
+                .push(ApiCall::ChangeType { balancer_type });
+            Ok(())
+        }
+    }
 
     fn base_config() -> OperatorConfig {
         OperatorConfig {
@@ -727,6 +958,72 @@ mod tests {
             },
             ..Default::default()
         }
+    }
+
+    fn test_load_balancer() -> LoadBalancer {
+        LoadBalancer {
+            name: "svc-name".to_string(),
+            services: HashMap::new(),
+            targets: vec![],
+            private_ip: None,
+            check_interval: 15,
+            timeout: 10,
+            retries: 3,
+            proxy_mode: false,
+            location: "hel1".to_string(),
+            balancer_type: "lb11".to_string(),
+            algorithm: LoadBalancerAlgorithm {
+                r#type: hcloud::models::load_balancer_algorithm::Type::LeastConnections,
+            },
+            network_name: None,
+            hcloud_config: HcloudConfig::new(),
+        }
+    }
+
+    fn existing_service(listen_port: i32, destination_port: i32) -> LoadBalancerService {
+        LoadBalancerService {
+            http: None,
+            listen_port,
+            destination_port,
+            protocol: hcloud::models::load_balancer_service::Protocol::Tcp,
+            proxyprotocol: false,
+            health_check: Box::new(LoadBalancerServiceHealthCheck {
+                http: None,
+                interval: 5,
+                port: destination_port,
+                protocol: hcloud::models::load_balancer_service_health_check::Protocol::Tcp,
+                retries: 1,
+                timeout: 2,
+            }),
+        }
+    }
+
+    fn remote_balancer_with_services(
+        services: Vec<LoadBalancerService>,
+        targets: Vec<&str>,
+    ) -> hcloud::models::LoadBalancer {
+        let mut balancer = hcloud::models::LoadBalancer::default();
+        balancer.id = 42;
+        balancer.name = "svc-name".to_string();
+        balancer.services = services;
+        balancer.targets = targets
+            .into_iter()
+            .map(|ip| hcloud::models::LoadBalancerTarget {
+                ip: Some(Box::new(hcloud::models::LoadBalancerTargetIp {
+                    ip: ip.to_string(),
+                })),
+                ..Default::default()
+            })
+            .collect();
+        balancer.algorithm = Box::new(LoadBalancerAlgorithm {
+            r#type: hcloud::models::load_balancer_algorithm::Type::RoundRobin,
+        });
+        balancer.load_balancer_type = Box::new(hcloud::models::LoadBalancerType {
+            id: 1,
+            name: "lb11".to_string(),
+            ..Default::default()
+        });
+        balancer
     }
 
     #[test]
@@ -790,5 +1087,88 @@ mod tests {
             result,
             Err(crate::error::RobotLBError::UnknownLBAlgorithm)
         ));
+    }
+
+    #[tokio::test]
+    async fn reconcile_services_uses_mock_api_for_drift_and_missing_ports() {
+        let mut lb = test_load_balancer();
+        lb.services.insert(80, 30080);
+        lb.services.insert(443, 30443);
+
+        let remote = remote_balancer_with_services(
+            vec![existing_service(80, 30081), existing_service(8080, 38080)],
+            vec![],
+        );
+        let api = MockHcloudApi::default();
+
+        lb.reconcile_services(&remote, &api)
+            .await
+            .expect("service reconcile should succeed");
+
+        assert_eq!(
+            api.calls(),
+            vec![
+                ApiCall::UpdateService {
+                    listen_port: 80,
+                    destination_port: 30080,
+                },
+                ApiCall::DeleteService { listen_port: 8080 },
+                ApiCall::AddService {
+                    listen_port: 443,
+                    destination_port: 30443,
+                }
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn reconcile_targets_uses_mock_api_for_target_diff() {
+        let mut lb = test_load_balancer();
+        lb.targets = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string()];
+
+        let remote = remote_balancer_with_services(vec![], vec!["10.0.0.2", "10.0.0.3"]);
+        let api = MockHcloudApi::default();
+
+        lb.reconcile_targets(&remote, &api)
+            .await
+            .expect("target reconcile should succeed");
+
+        assert_eq!(
+            api.calls(),
+            vec![
+                ApiCall::RemoveTarget {
+                    ip: "10.0.0.3".to_string(),
+                },
+                ApiCall::AddTarget {
+                    ip: "10.0.0.1".to_string(),
+                },
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn reconcile_algorithm_and_type_uses_mock_api_when_values_change() {
+        let mut lb = test_load_balancer();
+        lb.balancer_type = "lb21".to_string();
+
+        let remote = remote_balancer_with_services(vec![], vec![]);
+        let api = MockHcloudApi::default();
+
+        lb.reconcile_algorithm(&remote, &api)
+            .await
+            .expect("algorithm reconcile should succeed");
+        lb.reconcile_lb_type(&remote, &api)
+            .await
+            .expect("type reconcile should succeed");
+
+        assert_eq!(
+            api.calls(),
+            vec![
+                ApiCall::ChangeAlgorithm,
+                ApiCall::ChangeType {
+                    balancer_type: "lb21".to_string(),
+                }
+            ]
+        );
     }
 }
