@@ -3,6 +3,8 @@
   extends: [
     'config:recommended',
   ],
+  forkProcessing: 'enabled',
+  onboarding: true,
   configMigration: true,
   'pre-commit': {
     enabled: true,
