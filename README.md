@@ -36,6 +36,27 @@ helm install robotlb oci://ghcr.io/intreecom/charts/robotlb -f values.yaml
 
 After the chart is installed, you should be able to create `LoadBalancer` services.
 
+### High availability
+
+`robotlb` supports safe multi-replica deployment via Kubernetes Lease-based leader election.
+Run at least 2 replicas and use pod anti-affinity so only one pod is active leader while the
+other is standby.
+
+Example Helm values:
+
+```yaml
+replicaCount: 2
+
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: robotlb
+            app.kubernetes.io/instance: robotlb
+        topologyKey: kubernetes.io/hostname
+```
+
 ## How it works
 
 The operator listens to the Kubernetes API for services of type `LoadBalancer` and creates Hetzner
@@ -43,6 +64,9 @@ load balancers that point to nodes based on `node-ip`.
 
 Nodes are selected based on where the service's target pods are deployed, which is determined by
 searching for pods with the service's selector. This behavior can be configured.
+
+It also watches `EndpointSlice` objects to react quickly to backend rollout/placement changes, with
+an additional periodic reconcile as a resilience fallback.
 
 ## Configuration
 
@@ -81,11 +105,24 @@ Options:
           Default load balancer proxy mode. If enabled, the load balancer will act as a proxy for the target servers. The default value is `false`. https://docs.hetzner.com/cloud/load-balancers/faq/#what-does-proxy-protocol-mean-and-should-i-enable-it [env: ROBOTLB_DEFAULT_LB_PROXY_MODE_ENABLED=]
       --ipv6-ingress
           Whether to enable IPv6 ingress for the load balancer. If enabled, the load balancer's IPv6 will be attached to the service as an external IP along with IPv4 [env: ROBOTLB_IPV6_INGRESS=]
+      --leader-election-namespace <LEADER_ELECTION_NAMESPACE>
+          Optional namespace for the leader election lease. If not set, robotlb auto-detects runtime namespace [env: ROBOTLB_LEADER_ELECTION_NAMESPACE=]
+      --leader-election-lease-name <LEADER_ELECTION_LEASE_NAME>
+          Name of the Kubernetes Lease object used for leader election [env: ROBOTLB_LEADER_ELECTION_LEASE_NAME=] [default: robotlb-leader-election]
+      --leader-election-lease-ttl-secs <LEADER_ELECTION_LEASE_TTL_SECS>
+          Lease TTL in seconds [env: ROBOTLB_LEADER_ELECTION_LEASE_TTL_SECS=] [default: 15]
+      --leader-election-renew-interval-secs <LEADER_ELECTION_RENEW_INTERVAL_SECS>
+          How often to attempt lease acquire/renew in seconds [env: ROBOTLB_LEADER_ELECTION_RENEW_INTERVAL_SECS=] [default: 5]
       --log-level <LOG_LEVEL>
           [env: ROBOTLB_LOG_LEVEL=] [default: INFO]
   -h, --help
           Print help
 ```
+
+When deploying without the Helm chart, ensure RBAC includes:
+
+- `discovery.k8s.io/endpointslices`: `get,list,watch`
+- `coordination.k8s.io/leases`: `get,list,watch,create,patch,update`
 
 ### Service annotations
 
