@@ -282,7 +282,6 @@ impl LoadBalancer {
     /// The target will receive the traffic from the services.
     /// The target is identified by its IP address.
     pub fn add_target(&mut self, ip: &str) {
-        tracing::debug!("Recording desired target {}", ip);
         self.targets.push(ip.to_string());
     }
 
@@ -528,15 +527,8 @@ impl LoadBalancer {
             })
             .collect();
 
-        tracing::debug!(
-            desired_targets = ?desired_targets,
-            current_targets = ?current_targets,
-            "Planning target reconciliation actions"
-        );
-
         for target in &hcloud_balancer.targets {
             let Some(target_ip) = target.ip.clone() else {
-                tracing::debug!(target = ?target, "Skipping non-IP target while planning");
                 continue;
             };
             let normalized_target_ip = normalize_ip(&target_ip.ip);

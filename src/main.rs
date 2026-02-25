@@ -414,15 +414,6 @@ pub async fn reconcile_load_balancer(
     let desired_targets = derive_targets(nodes, desired_ip_type);
     let desired_services = derive_services(&svc);
 
-    tracing::debug!(
-        service = %svc.name_any(),
-        target_count = desired_targets.len(),
-        service_count = desired_services.len(),
-        desired_targets = ?desired_targets,
-        desired_services = ?desired_services,
-        "Computed desired load balancer state"
-    );
-
     apply_desired_state(&mut lb, desired_targets, desired_services);
 
     let hcloud_lb = lb.reconcile().await?;
