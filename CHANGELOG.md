@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2](https://github.com/forkline/robotlb/tree/0.3.2) - 2026-02-25
+
+### Fixed
+
+- changelog: Align tag pattern and regenerate changelog ([9ffe8d9](https://github.com/forkline/robotlb/commit/9ffe8d99f53955be11eea68129ff33b45f458f75))
+
+### Chore
+
+- logging: Quiet reconcile debug noise for production ([2255956](https://github.com/forkline/robotlb/commit/22559568b937fa9b66d13d59e1bcddb719a48605))
+
 ## [0.3.1](https://github.com/forkline/robotlb/tree/0.3.1) - 2026-02-25
 
 ### Fixed
