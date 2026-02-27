@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3](https://github.com/forkline/robotlb/tree/0.4.3) - 2026-02-27
+
+### Added
+
+- Add graceful shutdown handling ([a0b8bed](https://github.com/forkline/robotlb/commit/a0b8bedb9e17eb3f8648b4ded091a36c38605a1d))
+
+### Fixed
+
+- Use correct ipmode field name in service status json ([c0df415](https://github.com/forkline/robotlb/commit/c0df4157007489ce326bbc63d4ed849d198ff28b))
+
+### Release
+
+- Version 0.4.2 ([8fd114f](https://github.com/forkline/robotlb/commit/8fd114fda7e1e22a18259fa4e96f12cdf607b301))
+
 ## [0.4.2](https://github.com/forkline/robotlb/tree/0.4.2) - 2026-02-27
 
 ### Fixed
