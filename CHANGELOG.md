@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1](https://github.com/forkline/robotlb/tree/0.4.1) - 2026-02-27
+
+### Added
+
+- Set ipMode to Proxy when proxy mode is enabled ([be9cbc3](https://github.com/forkline/robotlb/commit/be9cbc3111a270b7dc20f7960dda5b4846177692))
+
+### Documentation
+
+- Add ha deployment and leader election guidance ([a204747](https://github.com/forkline/robotlb/commit/a204747fe8abeb711c57745656a7327e48b270f4))
+
 ## [0.4.0](https://github.com/forkline/robotlb/tree/0.4.0) - 2026-02-25
 
 ### Added
