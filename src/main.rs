@@ -250,7 +250,12 @@ fn apply_desired_state(
     }
 }
 
-fn build_ingress(hcloud_lb: &hcloud::models::LoadBalancer, enable_ipv6: bool) -> Vec<Value> {
+fn build_ingress(
+    hcloud_lb: &hcloud::models::LoadBalancer,
+    enable_ipv6: bool,
+    proxy_mode: bool,
+) -> Vec<Value> {
+    let ip_mode = if proxy_mode { "Proxy" } else { "VIP" };
     let mut ingress = vec![];
 
     let dns_ipv4 = hcloud_lb.public_net.ipv4.dns_ptr.clone().flatten();
@@ -262,7 +267,7 @@ fn build_ingress(hcloud_lb: &hcloud::models::LoadBalancer, enable_ipv6: bool) ->
         ingress.push(json!({
             "ip": ipv4,
             "dns": dns_ipv4,
-            "ip_mode": "VIP"
+            "ip_mode": ip_mode
         }));
     }
 
@@ -271,7 +276,7 @@ fn build_ingress(hcloud_lb: &hcloud::models::LoadBalancer, enable_ipv6: bool) ->
             ingress.push(json!({
                 "ip": ipv6,
                 "dns": dns_ipv6,
-                "ip_mode": "VIP"
+                "ip_mode": ip_mode
             }));
         }
     }
@@ -437,7 +442,7 @@ pub async fn reconcile_load_balancer(
 
     let hcloud_lb = lb.reconcile().await?;
 
-    let ingress = build_ingress(&hcloud_lb, context.config.ipv6_ingress);
+    let ingress = build_ingress(&hcloud_lb, context.config.ipv6_ingress, lb.proxy_mode);
     patch_ingress_status(&svc, &context, ingress).await?;
 
     Ok(Action::requeue(Duration::from_secs(SUCCESS_REQUEUE_SECS)))
