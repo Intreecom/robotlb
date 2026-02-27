@@ -1,7 +1,15 @@
+//! Error types for the robotlb operator.
+//!
+//! This module defines all error types used throughout the operator,
+//! including Kubernetes API errors, Hetzner Cloud API errors, and
+//! internal validation errors.
+
 use thiserror::Error;
 
+/// Result type alias for robotlb operations.
 pub type RobotLBResult<T> = Result<T, RobotLBError>;
 
+/// All possible errors that can occur in the robotlb operator.
 #[derive(Debug, Error)]
 pub enum RobotLBError {
     #[error("Cannot parse node filter: {0}")]
@@ -11,16 +19,16 @@ pub enum RobotLBError {
     #[error("Service was skipped")]
     SkipService,
     #[error("Cannot parse integer value: {0}")]
-    PaseIntError(#[from] std::num::ParseIntError),
+    ParseIntError(#[from] std::num::ParseIntError),
     #[error("Cannot parse boolean value: {0}")]
-    PaseBoolError(#[from] std::str::ParseBoolError),
+    ParseBoolError(#[from] std::str::ParseBoolError),
     #[error("HCloud error: {0}")]
     HCloudError(String),
     #[error("Kube error: {0}")]
     KubeError(#[from] kube::Error),
-    #[error("Unknown LoadBalancing alorithm")]
+    #[error("Unknown load balancing algorithm")]
     UnknownLBAlgorithm,
-    #[error("Cannot get target nodes, because the service has no selector")]
+    #[error("Cannot get target nodes because the service has no selector")]
     ServiceWithoutSelector,
 
     // HCloud API errors

@@ -1,3 +1,8 @@
+//! Label filtering for Kubernetes nodes.
+//!
+//! This module provides a label filter that can parse Kubernetes label selector
+//! syntax and check if a set of labels matches the filter criteria.
+
 use std::{collections::BTreeMap, str::FromStr};
 
 use crate::error::RobotLBError;

@@ -1,3 +1,8 @@
+//! Finalizer management for Kubernetes services.
+//!
+//! This module handles adding and removing finalizers on services to ensure
+//! proper cleanup of Hetzner Cloud resources before a service is deleted.
+
 use k8s_openapi::{api::core::v1::Service, serde_json::json};
 use kube::{
     Api, Client, ResourceExt,

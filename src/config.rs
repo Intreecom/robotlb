@@ -1,3 +1,8 @@
+//! Configuration types for the robotlb operator.
+//!
+//! This module defines the command-line arguments and environment variables
+//! used to configure the operator at runtime.
+
 use clap::Parser;
 use tracing::level_filters::LevelFilter;
 
