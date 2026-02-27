@@ -267,7 +267,7 @@ fn build_ingress(
         ingress.push(json!({
             "ip": ipv4,
             "dns": dns_ipv4,
-            "ip_mode": ip_mode
+            "ipMode": ip_mode
         }));
     }
 
@@ -276,7 +276,7 @@ fn build_ingress(
             ingress.push(json!({
                 "ip": ipv6,
                 "dns": dns_ipv6,
-                "ip_mode": ip_mode
+                "ipMode": ip_mode
             }));
         }
     }
