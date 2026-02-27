@@ -6,15 +6,6 @@
     // New lints which are cool.
     clippy::nursery,
 )]
-#![
-    allow(
-        // I don't care about this.
-        clippy::module_name_repetitions,
-        // Yo, the hell you should put
-        // it in docs, if signature is clear as sky.
-        clippy::missing_errors_doc
-    )
-]
 
 use clap::Parser;
 use config::OperatorConfig;
@@ -24,12 +15,12 @@ use hcloud::apis::configuration::Configuration as HCloudConfig;
 use k8s_openapi::{
     api::core::v1::{Node, Pod, Service},
     api::discovery::v1::EndpointSlice,
-    serde_json::{json, Value},
+    serde_json::{Value, json},
 };
 use kube::{
-    api::{ListParams, PatchParams},
-    runtime::{controller::Action, reflector::ObjectRef, watcher, Controller},
     Resource, ResourceExt,
+    api::{ListParams, PatchParams},
+    runtime::{Controller, controller::Action, reflector::ObjectRef, watcher},
 };
 use kube_leader_election::{LeaseLock, LeaseLockParams, LeaseLockResult};
 use label_filter::LabelFilter;
@@ -38,11 +29,12 @@ use std::{
     collections::HashSet,
     str::FromStr,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc,
+        atomic::{AtomicBool, Ordering},
     },
     time::Duration,
 };
+use tokio_util::sync::CancellationToken;
 
 const SUCCESS_REQUEUE_SECS: u64 = 180;
 
@@ -71,8 +63,15 @@ async fn main() -> RobotLBResult<()> {
     tracing::info!("Starting robotlb operator v{}", env!("CARGO_PKG_VERSION"));
     let kube_client = kube::Client::try_default().await?;
     tracing::info!("Kube client is connected");
+
+    let shutdown_token = CancellationToken::new();
     let is_leader = Arc::new(AtomicBool::new(false));
-    spawn_leader_election_task(kube_client.clone(), &operator_config, is_leader.clone());
+    spawn_leader_election_task(
+        kube_client.clone(),
+        &operator_config,
+        is_leader.clone(),
+        shutdown_token.clone(),
+    );
 
     let context = Arc::new(CurrentContext::new(
         kube_client.clone(),
@@ -81,35 +80,48 @@ async fn main() -> RobotLBResult<()> {
         is_leader,
     ));
     tracing::info!("Starting the controller");
-    Controller::new(
-        kube::Api::<Service>::all(kube_client),
-        watcher::Config::default(),
-    )
-    .watches(
-        kube::Api::<EndpointSlice>::all(context.client.clone()),
-        watcher::Config::default(),
-        |endpoint_slice| map_endpoint_slice_to_service(&endpoint_slice),
-    )
-    .run(reconcile_service, on_error, context)
-    .for_each(|reconcilation_result| async move {
-        match reconcilation_result {
-            Ok((service, _action)) => {
-                tracing::info!("Reconcilation of a service {} was successful", service.name);
-            }
-            Err(err) => match err {
-                // During reconcilation process,
-                // the controller has decided to skip the service.
-                kube::runtime::controller::Error::ReconcilerFailed(
-                    RobotLBError::SkipService,
-                    _,
-                ) => {}
-                _ => {
-                    tracing::error!("Error reconciling service: {:#?}", err);
+
+    let controller_shutdown = shutdown_token.clone();
+    let controller = tokio::spawn(async move {
+        Controller::new(
+            kube::Api::<Service>::all(kube_client),
+            watcher::Config::default(),
+        )
+        .watches(
+            kube::Api::<EndpointSlice>::all(context.client.clone()),
+            watcher::Config::default(),
+            |endpoint_slice| map_endpoint_slice_to_service(&endpoint_slice),
+        )
+        .run(reconcile_service, on_error, context)
+        .take_until(controller_shutdown.cancelled())
+        .for_each(|reconcilation_result| async move {
+            match reconcilation_result {
+                Ok((service, _action)) => {
+                    tracing::info!("Reconcilation of a service {} was successful", service.name);
                 }
-            },
+                Err(err) => match err {
+                    kube::runtime::controller::Error::ReconcilerFailed(
+                        RobotLBError::SkipService,
+                        _,
+                    ) => {}
+                    _ => {
+                        tracing::error!("Error reconciling service: {:#?}", err);
+                    }
+                },
+            }
+        })
+        .await;
+    });
+
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {
+            tracing::info!("Received shutdown signal");
+            shutdown_token.cancel();
         }
-    })
-    .await;
+        _ = controller => {}
+    }
+
+    tracing::info!("Shutdown complete");
     Ok(())
 }
 
@@ -271,14 +283,12 @@ fn build_ingress(
         }));
     }
 
-    if enable_ipv6 {
-        if let Some(ipv6) = &ipv6 {
-            ingress.push(json!({
-                "ip": ipv6,
-                "dns": dns_ipv6,
-                "ipMode": ip_mode
-            }));
-        }
+    if enable_ipv6 && let Some(ipv6) = &ipv6 {
+        ingress.push(json!({
+            "ip": ipv6,
+            "dns": dns_ipv6,
+            "ipMode": ip_mode
+        }));
     }
 
     ingress
@@ -321,6 +331,10 @@ async fn patch_ingress_status(
 /// This function is called by the controller for each service.
 /// It will create or update the load balancer based on the service.
 /// If the service is being deleted, it will clean up the resources.
+///
+/// # Errors
+///
+/// Returns an error if the service is not supported, or if the Kubernetes/Hetzner API call fails.
 #[tracing::instrument(skip(svc,context), fields(service=svc.name_any()))]
 pub async fn reconcile_service(
     svc: Arc<Service>,
@@ -427,6 +441,10 @@ async fn get_nodes_by_selector(
 /// Reconcile the `LoadBalancer` type of service.
 /// This function will find the nodes based on the node selector
 /// and create or update the load balancer.
+///
+/// # Errors
+///
+/// Returns an error if node discovery fails, or if the Kubernetes/Hetzner API call fails.
 pub async fn reconcile_load_balancer(
     mut lb: LoadBalancer,
     svc: Arc<Service>,
@@ -477,6 +495,7 @@ fn spawn_leader_election_task(
     client: kube::Client,
     config: &OperatorConfig,
     is_leader: Arc<AtomicBool>,
+    shutdown: CancellationToken,
 ) {
     let lease_namespace = config
         .leader_election_namespace
@@ -504,29 +523,43 @@ fn spawn_leader_election_task(
 
     tokio::spawn(async move {
         loop {
-            match lease.try_acquire_or_renew().await {
-                Ok(LeaseLockResult::Acquired(_)) => {
-                    if !is_leader.load(Ordering::Relaxed) {
-                        tracing::info!("Leadership acquired");
-                    }
-                    is_leader.store(true, Ordering::Relaxed);
+            tokio::select! {
+                () = shutdown.cancelled() => {
+                    tracing::info!("Leader election task shutting down");
+                    break;
                 }
-                Ok(LeaseLockResult::NotAcquired(_)) => {
-                    if is_leader.load(Ordering::Relaxed) {
-                        tracing::warn!("Leadership lost");
+                result = lease.try_acquire_or_renew() => {
+                    match result {
+                        Ok(LeaseLockResult::Acquired(_)) => {
+                            if !is_leader.load(Ordering::Relaxed) {
+                                tracing::info!("Leadership acquired");
+                            }
+                            is_leader.store(true, Ordering::Relaxed);
+                        }
+                        Ok(LeaseLockResult::NotAcquired(_)) => {
+                            if is_leader.load(Ordering::Relaxed) {
+                                tracing::warn!("Leadership lost");
+                            }
+                            is_leader.store(false, Ordering::Relaxed);
+                        }
+                        Err(err) => {
+                            if is_leader.load(Ordering::Relaxed) {
+                                tracing::warn!(error = %err, "Leader election failed, stepping down");
+                            } else {
+                                tracing::warn!(error = %err, "Leader election attempt failed");
+                            }
+                            is_leader.store(false, Ordering::Relaxed);
+                        }
                     }
-                    is_leader.store(false, Ordering::Relaxed);
-                }
-                Err(err) => {
-                    if is_leader.load(Ordering::Relaxed) {
-                        tracing::warn!(error = %err, "Leader election failed, stepping down");
-                    } else {
-                        tracing::warn!(error = %err, "Leader election attempt failed");
-                    }
-                    is_leader.store(false, Ordering::Relaxed);
                 }
             }
-            tokio::time::sleep(renew_interval).await;
+            tokio::select! {
+                () = shutdown.cancelled() => {
+                    tracing::info!("Leader election task shutting down");
+                    break;
+                }
+                () = tokio::time::sleep(renew_interval) => {}
+            }
         }
     });
 }

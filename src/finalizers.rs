@@ -1,7 +1,7 @@
 use k8s_openapi::{api::core::v1::Service, serde_json::json};
 use kube::{
-    api::{Patch, PatchParams},
     Api, Client, ResourceExt,
+    api::{Patch, PatchParams},
 };
 
 use crate::{
@@ -106,6 +106,10 @@ async fn reconcile_finalizers(
 
 /// Add finalizer to the service.
 /// This will prevent the service from being deleted.
+///
+/// # Errors
+///
+/// Returns an error if the Kubernetes API call fails.
 pub async fn add(client: Client, svc: &Service) -> RobotLBResult<()> {
     reconcile_finalizers(client, svc, FinalizerOperation::Add).await
 }
@@ -124,6 +128,10 @@ pub fn check(service: &Service) -> bool {
 /// This will allow the service to be deleted.
 ///
 /// if service does not have the finalizer, this function will do nothing.
+///
+/// # Errors
+///
+/// Returns an error if the Kubernetes API call fails.
 pub async fn remove(client: Client, svc: &Service) -> RobotLBResult<()> {
     reconcile_finalizers(client, svc, FinalizerOperation::Remove).await
 }

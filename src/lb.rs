@@ -25,10 +25,10 @@ use std::{
 };
 
 use crate::{
+    CurrentContext,
     config::OperatorConfig,
     consts,
     error::{RobotLBError, RobotLBResult},
-    CurrentContext,
 };
 
 #[derive(Debug)]
@@ -251,6 +251,10 @@ impl LoadBalancer {
     /// from the service annotations and the context.
     /// If some of the required information is missing, the method will
     /// try to use the default values from the context.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if required annotations are missing or invalid.
     pub fn try_from_svc(svc: &Service, context: &CurrentContext) -> RobotLBResult<Self> {
         let parsed = parse_load_balancer_config(svc, &context.config)?;
 
@@ -286,6 +290,10 @@ impl LoadBalancer {
     }
 
     /// Reconcile the load balancer to match the desired configuration.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the Hetzner Cloud API call fails.
     #[tracing::instrument(skip(self), fields(lb_name=self.name))]
     pub async fn reconcile(&self) -> RobotLBResult<hcloud::models::LoadBalancer> {
         let api = LiveHcloudLoadBalancerApi {
@@ -647,6 +655,10 @@ impl LoadBalancer {
     /// Cleanup the load balancer.
     /// This method will remove all the services and targets from the
     /// load balancer.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the Hetzner Cloud API call fails.
     pub async fn cleanup(&self) -> RobotLBResult<()> {
         let Some(hcloud_balancer) = self.get_hcloud_lb().await? else {
             return Ok(());
@@ -917,8 +929,8 @@ fn normalize_ip(ip: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        parse_load_balancer_config, HcloudLoadBalancerApi, LoadBalancer, ServiceReconcileAction,
-        TargetReconcileAction,
+        HcloudLoadBalancerApi, LoadBalancer, ServiceReconcileAction, TargetReconcileAction,
+        parse_load_balancer_config,
     };
     use crate::{config::OperatorConfig, consts};
     use async_trait::async_trait;
