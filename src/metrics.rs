@@ -6,8 +6,8 @@
 use std::{sync::Arc, time::Instant};
 
 use prometheus::{
-    register_counter_vec_with_registry, register_gauge_vec_with_registry, CounterVec, GaugeVec,
-    Opts, Registry, TextEncoder,
+    CounterVec, GaugeVec, Opts, Registry, TextEncoder, register_counter_vec_with_registry,
+    register_gauge_vec_with_registry,
 };
 
 use crate::consts;
@@ -118,50 +118,50 @@ impl Metrics {
         }
     }
 
-    fn controller_label(&self) -> [&str; 1] {
+    const fn controller_label() -> [&'static str; 1] {
         [consts::ROBOTLB_LB_CLASS]
     }
 
     pub fn inc_reconcile_total(&self) {
         self.reconcile_total
-            .with_label_values(&self.controller_label())
+            .with_label_values(&Self::controller_label())
             .inc();
     }
 
     pub fn inc_reconcile_failures(&self) {
         self.reconcile_failures
-            .with_label_values(&self.controller_label())
+            .with_label_values(&Self::controller_label())
             .inc();
     }
 
     pub fn observe_reconcile_duration(&self, duration: std::time::Duration) {
         let secs = duration.as_secs_f64();
         self.reconcile_duration
-            .with_label_values(&self.controller_label())
+            .with_label_values(&Self::controller_label())
             .set(secs);
     }
 
     pub fn set_services_managed(&self, count: u64) {
         self.services_managed
-            .with_label_values(&self.controller_label())
+            .with_label_values(&Self::controller_label())
             .set(f64::from(u32::try_from(count).unwrap_or(u32::MAX)));
     }
 
     pub fn inc_hcloud_api_requests(&self) {
         self.hcloud_api_requests_total
-            .with_label_values(&self.controller_label())
+            .with_label_values(&Self::controller_label())
             .inc();
     }
 
     pub fn inc_hcloud_api_errors(&self) {
         self.hcloud_api_errors_total
-            .with_label_values(&self.controller_label())
+            .with_label_values(&Self::controller_label())
             .inc();
     }
 
     pub fn set_leader_status(&self, is_leader: bool) {
         self.leader_status
-            .with_label_values(&self.controller_label())
+            .with_label_values(&Self::controller_label())
             .set(f64::from(is_leader));
     }
 
