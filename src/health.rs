@@ -95,27 +95,24 @@ fn handle_request(
                 response
             }
         }
-        "/metrics" => {
-            match crate::prometheus_exporter::format_prometheus_metrics() {
-                Ok(metrics) => {
-                    let mut response = Response::new(Full::new(Bytes::from(metrics)));
-                    response.headers_mut().insert(
-                        hyper::header::CONTENT_TYPE,
-                        hyper::header::HeaderValue::from_static(
-                            "application/openmetrics-text; version=1.0.0; charset=utf-8",
-                        ),
-                    );
-                    response
-                }
-                Err(e) => {
-                    tracing::error!("Failed to get metrics: {}", e);
-                    let mut response =
-                        Response::new(Full::new(Bytes::from(format!("Error: {}", e))));
-                    *response.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
-                    response
-                }
+        "/metrics" => match crate::prometheus_exporter::format_prometheus_metrics() {
+            Ok(metrics) => {
+                let mut response = Response::new(Full::new(Bytes::from(metrics)));
+                response.headers_mut().insert(
+                    hyper::header::CONTENT_TYPE,
+                    hyper::header::HeaderValue::from_static(
+                        "application/openmetrics-text; version=1.0.0; charset=utf-8",
+                    ),
+                );
+                response
             }
-        }
+            Err(e) => {
+                tracing::error!("Failed to get metrics: {e}");
+                let mut response = Response::new(Full::new(Bytes::from(format!("Error: {e}"))));
+                *response.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+                response
+            }
+        },
         _ => {
             let mut response = Response::new(Full::new(Bytes::from("not found")));
             *response.status_mut() = StatusCode::NOT_FOUND;

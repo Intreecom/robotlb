@@ -1,8 +1,8 @@
 use std::{sync::Arc, time::Instant};
 
 use opentelemetry::{
-    metrics::{Counter, Gauge, Histogram, Meter},
     KeyValue,
+    metrics::{Counter, Gauge, Histogram, Meter},
 };
 use tokio::time::Instant as TokioInstant;
 use tracing::debug;
@@ -109,6 +109,7 @@ impl Metrics {
             .record(i64::from(is_leader), &self.controller_label());
     }
 
+    #[must_use]
     pub fn count_and_measure(&self) -> ReconcileMeasurer {
         self.inc_reconcile_operations();
         ReconcileMeasurer {

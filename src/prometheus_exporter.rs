@@ -9,9 +9,7 @@ use opentelemetry_sdk::{
     error::OTelSdkError,
     metrics::{
         Temporality,
-        data::{
-            AggregatedMetrics, Gauge, Histogram, MetricData, ResourceMetrics, Sum,
-        },
+        data::{AggregatedMetrics, Gauge, Histogram, MetricData, ResourceMetrics, Sum},
         exporter::PushMetricExporter,
     },
 };
@@ -30,6 +28,9 @@ impl PrometheusExporter {
         }
     }
 
+    /// # Panics
+    /// Panics if the internal mutex is poisoned.
+    #[must_use]
     pub fn get_metrics(&self) -> Option<String> {
         self.data.lock().unwrap().clone()
     }
@@ -43,16 +44,18 @@ impl PrometheusExporter {
                 let metric_name = format!("{}_{}", scope_name, metric.name());
                 let description = metric.description();
 
-                writeln!(output, "# HELP {} {}", metric_name, description).ok();
+                writeln!(output, "# HELP {metric_name} {description}").ok();
 
                 match metric.data() {
                     AggregatedMetrics::F64(data) => {
                         Self::format_metric_data(&metric_name, data, &mut output, |v| v);
                     }
                     AggregatedMetrics::U64(data) => {
+                        #[allow(clippy::cast_precision_loss)]
                         Self::format_metric_data(&metric_name, data, &mut output, |v| v as f64);
                     }
                     AggregatedMetrics::I64(data) => {
+                        #[allow(clippy::cast_precision_loss)]
                         Self::format_metric_data(&metric_name, data, &mut output, |v| v as f64);
                     }
                 }
@@ -73,15 +76,15 @@ impl PrometheusExporter {
     {
         match data {
             MetricData::Sum(sum) => {
-                writeln!(output, "# TYPE {} counter", metric_name).ok();
+                writeln!(output, "# TYPE {metric_name} counter").ok();
                 Self::format_sum(metric_name, sum, output, to_f64);
             }
             MetricData::Gauge(gauge) => {
-                writeln!(output, "# TYPE {} gauge", metric_name).ok();
+                writeln!(output, "# TYPE {metric_name} gauge").ok();
                 Self::format_gauge(metric_name, gauge, output, to_f64);
             }
             MetricData::Histogram(histogram) => {
-                writeln!(output, "# TYPE {} histogram", metric_name).ok();
+                writeln!(output, "# TYPE {metric_name} histogram").ok();
                 Self::format_histogram(metric_name, histogram, output, to_f64);
             }
             MetricData::ExponentialHistogram(_) => {}
@@ -99,7 +102,7 @@ impl PrometheusExporter {
         for data_point in sum.data_points() {
             let labels = format_attributes(data_point.attributes());
             let value = to_f64(data_point.value());
-            writeln!(output, "{}_total{} {}", metric_name, labels, value).ok();
+            writeln!(output, "{metric_name}_total{labels} {value}").ok();
         }
     }
 
@@ -114,7 +117,7 @@ impl PrometheusExporter {
         for data_point in gauge.data_points() {
             let labels = format_attributes(data_point.attributes());
             let value = to_f64(data_point.value());
-            writeln!(output, "{}{} {}", metric_name, labels, value).ok();
+            writeln!(output, "{metric_name}{labels} {value}").ok();
         }
     }
 
@@ -140,7 +143,7 @@ impl PrometheusExporter {
                 };
 
                 let labels = if labels_base.is_empty() {
-                    format!("{{{}}}", bucket_label)
+                    format!("{{{bucket_label}}}")
                 } else {
                     format!(
                         "{},{}}}",
@@ -149,22 +152,18 @@ impl PrometheusExporter {
                     )
                 };
 
-                writeln!(output, "{}_bucket{} {}", metric_name, labels, cumulative).ok();
+                writeln!(output, "{metric_name}_bucket{labels} {cumulative}").ok();
             }
 
             writeln!(
                 output,
-                "{}_sum{} {}",
-                metric_name,
-                labels_base,
+                "{metric_name}_sum{labels_base} {}",
                 to_f64(data_point.sum())
             )
             .ok();
             writeln!(
                 output,
-                "{}_count{} {}",
-                metric_name,
-                labels_base,
+                "{metric_name}_count{labels_base} {}",
                 data_point.count()
             )
             .ok();
@@ -221,21 +220,29 @@ impl PushMetricExporter for PrometheusExporter {
 
 static PROMETHEUS_EXPORTER: Mutex<Option<PrometheusExporter>> = Mutex::new(None);
 
+/// # Panics
+/// Panics if the global mutex is poisoned.
 pub fn set_global_exporter(exporter: PrometheusExporter) {
     debug!("Setting global Prometheus exporter");
     *PROMETHEUS_EXPORTER.lock().unwrap() = Some(exporter);
 }
 
+/// # Errors
+/// Returns an error string if the Prometheus exporter is not initialized or if no metrics are available yet.
+///
+/// # Panics
+/// Panics if the global mutex is poisoned.
 pub fn format_prometheus_metrics() -> Result<String, String> {
     let exporter_guard = PROMETHEUS_EXPORTER.lock().unwrap();
 
-    if let Some(exporter) = exporter_guard.as_ref() {
-        exporter
-            .get_metrics()
-            .ok_or_else(|| "No metrics available yet".to_string())
-    } else {
-        Err("Prometheus exporter not initialized".to_string())
-    }
+    exporter_guard.as_ref().map_or_else(
+        || Err("Prometheus exporter not initialized".to_string()),
+        |exporter| {
+            exporter
+                .get_metrics()
+                .ok_or_else(|| "No metrics available yet".to_string())
+        },
+    )
 }
 
 #[cfg(test)]
