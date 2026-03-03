@@ -23,6 +23,7 @@ use crate::{
     error::{RobotLBError, RobotLBResult},
     finalizers,
     lb::LoadBalancer,
+    metrics::ReconcileTimer,
 };
 
 pub(crate) use nodes::{
@@ -84,31 +85,56 @@ pub async fn reconcile_service(
     svc: Arc<Service>,
     context: Arc<CurrentContext>,
 ) -> RobotLBResult<Action> {
+    let mut timer = ReconcileTimer::new(context.metrics.clone());
+
     if !context.is_leader.load(Ordering::Relaxed) {
         return Err(RobotLBError::SkipService);
     }
 
-    ensure_service_is_supported(&svc)?;
+    if let Err(e) = ensure_service_is_supported(&svc) {
+        return Err(e);
+    }
 
     tracing::info!("Starting service reconcilation");
 
-    let lb = LoadBalancer::try_from_svc(&svc, &context)?;
+    let lb = match LoadBalancer::try_from_svc(&svc, &context) {
+        Ok(lb) => lb,
+        Err(e) => {
+            timer.set_failed();
+            return Err(e);
+        }
+    };
 
     // If the service is being deleted, we need to clean up the resources.
     if svc.meta().deletion_timestamp.is_some() {
         tracing::info!("Service deletion detected. Cleaning up resources.");
-        lb.cleanup().await?;
-        finalizers::remove(context.client.clone(), &svc).await?;
+        if let Err(e) = lb.cleanup().await {
+            timer.set_failed();
+            return Err(e);
+        }
+        if let Err(e) = finalizers::remove(context.client.clone(), &svc).await {
+            timer.set_failed();
+            return Err(e);
+        }
         return Ok(Action::await_change());
     }
 
     // Add finalizer if it's not there yet.
     if !finalizers::check(&svc) {
-        finalizers::add(context.client.clone(), &svc).await?;
+        if let Err(e) = finalizers::add(context.client.clone(), &svc).await {
+            timer.set_failed();
+            return Err(e);
+        }
     }
 
     // Based on the service type, we will reconcile the load balancer.
-    reconcile_load_balancer(lb, svc.clone(), context).await
+    match reconcile_load_balancer(lb, svc.clone(), context).await {
+        Ok(action) => Ok(action),
+        Err(e) => {
+            timer.set_failed();
+            Err(e)
+        }
+    }
 }
 
 /// Reconcile the `LoadBalancer` type of service.

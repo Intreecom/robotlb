@@ -36,7 +36,7 @@ use hcloud::apis::configuration::Configuration as HCloudConfig;
 use kube_leader_election::{LeaseLock, LeaseLockParams, LeaseLockResult};
 use tokio_util::sync::CancellationToken;
 
-use crate::{config::OperatorConfig, controller::run, error::RobotLBResult, health::HealthServer};
+use crate::{config::OperatorConfig, controller::run, error::RobotLBResult, health::HealthServer, metrics::Metrics};
 
 pub mod config;
 pub mod consts;
@@ -46,6 +46,7 @@ pub mod finalizers;
 pub mod health;
 pub mod label_filter;
 pub mod lb;
+pub mod metrics;
 
 /// Shared context for the operator.
 #[derive(Clone)]
@@ -58,6 +59,8 @@ pub struct CurrentContext {
     pub hcloud_config: HCloudConfig,
     /// Leader election status.
     pub is_leader: Arc<AtomicBool>,
+    /// Metrics instance.
+    pub metrics: Arc<Metrics>,
 }
 
 impl CurrentContext {
@@ -68,12 +71,14 @@ impl CurrentContext {
         config: OperatorConfig,
         hcloud_config: HCloudConfig,
         is_leader: Arc<AtomicBool>,
+        metrics: Arc<Metrics>,
     ) -> Self {
         Self {
             client,
             config,
             hcloud_config,
             is_leader,
+            metrics,
         }
     }
 }
@@ -99,10 +104,13 @@ async fn main() -> RobotLBResult<()> {
 
     let shutdown_token = CancellationToken::new();
     let is_leader = Arc::new(AtomicBool::new(false));
+    let metrics = Arc::new(Metrics::new());
+
+    metrics.set_leader_status(false);
 
     // Start health check server
     let health_addr: SocketAddr = "0.0.0.0:8080".parse().expect("valid address");
-    let health_server = HealthServer::new(health_addr);
+    let health_server = HealthServer::new(health_addr, metrics.clone());
     let ready_handle = health_server.ready_handle();
     let health_shutdown = shutdown_token.clone();
     tokio::spawn(async move {
@@ -114,6 +122,7 @@ async fn main() -> RobotLBResult<()> {
         &operator_config,
         is_leader.clone(),
         shutdown_token.clone(),
+        metrics.clone(),
     );
 
     let context = Arc::new(CurrentContext::new(
@@ -121,6 +130,7 @@ async fn main() -> RobotLBResult<()> {
         operator_config.clone(),
         hcloud_conf,
         is_leader.clone(),
+        metrics.clone(),
     ));
     tracing::info!("Starting the controller");
 
@@ -149,6 +159,7 @@ fn spawn_leader_election_task(
     config: &OperatorConfig,
     is_leader: Arc<AtomicBool>,
     shutdown: CancellationToken,
+    metrics: Arc<Metrics>,
 ) {
     let lease_namespace = config
         .leader_election_namespace
@@ -188,12 +199,14 @@ fn spawn_leader_election_task(
                                 tracing::info!("Leadership acquired");
                             }
                             is_leader.store(true, Ordering::Relaxed);
+                            metrics.set_leader_status(true);
                         }
                         Ok(LeaseLockResult::NotAcquired(_)) => {
                             if is_leader.load(Ordering::Relaxed) {
                                 tracing::warn!("Leadership lost");
                             }
                             is_leader.store(false, Ordering::Relaxed);
+                            metrics.set_leader_status(false);
                         }
                         Err(err) => {
                             if is_leader.load(Ordering::Relaxed) {
@@ -202,6 +215,7 @@ fn spawn_leader_election_task(
                                 tracing::warn!(error = %err, "Leader election attempt failed");
                             }
                             is_leader.store(false, Ordering::Relaxed);
+                            metrics.set_leader_status(false);
                         }
                     }
                 }
