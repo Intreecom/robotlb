@@ -1,9 +1,3 @@
-//! Health check HTTP server.
-//!
-//! This module provides a simple HTTP server for Kubernetes health probes.
-//! It exposes `/healthz` for liveness probes, `/readyz` for readiness probes,
-//! and `/metrics` for Prometheus metrics.
-
 use std::{
     net::SocketAddr,
     sync::{
@@ -23,22 +17,17 @@ use hyper_util::rt::TokioIo;
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 
-use crate::metrics::Metrics;
-
-/// Health check server for Kubernetes probes.
 pub struct HealthServer {
     addr: SocketAddr,
     ready: Arc<AtomicBool>,
-    metrics: Arc<Metrics>,
 }
 
 impl HealthServer {
     #[must_use]
-    pub fn new(addr: SocketAddr, metrics: Arc<Metrics>) -> Self {
+    pub fn new(addr: SocketAddr) -> Self {
         Self {
             addr,
             ready: Arc::new(AtomicBool::new(false)),
-            metrics,
         }
     }
 
@@ -68,13 +57,11 @@ impl HealthServer {
                     match accept {
                         Ok((stream, _)) => {
                             let ready = self.ready.clone();
-                            let metrics = self.metrics.clone();
                             let io = TokioIo::new(stream);
                             tokio::spawn(async move {
                                 let service = service_fn(move |req: Request<hyper::body::Incoming>| {
                                     let ready = ready.clone();
-                                    let metrics = metrics.clone();
-                                    std::future::ready(Ok::<_, std::convert::Infallible>(handle_request(&req, &ready, &metrics)))
+                                    std::future::ready(Ok::<_, std::convert::Infallible>(handle_request(&req, &ready)))
                                 });
                                 if let Err(e) = http1::Builder::new().serve_connection(io, service).await {
                                     tracing::debug!("Health check connection error: {}", e);
@@ -94,7 +81,6 @@ impl HealthServer {
 fn handle_request(
     req: &Request<hyper::body::Incoming>,
     ready: &Arc<AtomicBool>,
-    metrics: &Arc<Metrics>,
 ) -> Response<Full<Bytes>> {
     let path = req.uri().path();
 
@@ -110,12 +96,25 @@ fn handle_request(
             }
         }
         "/metrics" => {
-            let mut response = Response::new(Full::new(Bytes::from(metrics.export())));
-            response.headers_mut().insert(
-                hyper::header::CONTENT_TYPE,
-                hyper::header::HeaderValue::from_static("text/plain; version=0.0.4; charset=utf-8"),
-            );
-            response
+            match crate::prometheus_exporter::format_prometheus_metrics() {
+                Ok(metrics) => {
+                    let mut response = Response::new(Full::new(Bytes::from(metrics)));
+                    response.headers_mut().insert(
+                        hyper::header::CONTENT_TYPE,
+                        hyper::header::HeaderValue::from_static(
+                            "application/openmetrics-text; version=1.0.0; charset=utf-8",
+                        ),
+                    );
+                    response
+                }
+                Err(e) => {
+                    tracing::error!("Failed to get metrics: {}", e);
+                    let mut response =
+                        Response::new(Full::new(Bytes::from(format!("Error: {}", e))));
+                    *response.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+                    response
+                }
+            }
         }
         _ => {
             let mut response = Response::new(Full::new(Bytes::from("not found")));

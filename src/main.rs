@@ -50,6 +50,7 @@ pub mod health;
 pub mod label_filter;
 pub mod lb;
 pub mod metrics;
+pub mod prometheus_exporter;
 
 /// Shared context for the operator.
 #[derive(Clone)]
@@ -105,15 +106,26 @@ async fn main() -> RobotLBResult<()> {
     let kube_client = kube::Client::try_default().await?;
     tracing::info!("Kube client is connected");
 
+    let exporter = prometheus_exporter::PrometheusExporter::new();
+    let reader = opentelemetry_sdk::metrics::PeriodicReader::builder(exporter.clone()).build();
+    let provider = opentelemetry_sdk::metrics::SdkMeterProvider::builder()
+        .with_reader(reader)
+        .build();
+
+    prometheus_exporter::set_global_exporter(exporter);
+
+    opentelemetry::global::set_meter_provider(provider);
+    let meter = opentelemetry::global::meter("robotlb");
+
     let shutdown_token = CancellationToken::new();
     let is_leader = Arc::new(AtomicBool::new(false));
-    let metrics = Arc::new(Metrics::new());
+    let metrics = Arc::new(Metrics::new(&meter));
 
     metrics.set_leader_status(false);
 
     // Start health check server
     let health_addr: SocketAddr = "0.0.0.0:8080".parse().expect("valid address");
-    let health_server = HealthServer::new(health_addr, metrics.clone());
+    let health_server = HealthServer::new(health_addr);
     let ready_handle = health_server.ready_handle();
     let health_shutdown = shutdown_token.clone();
     tokio::spawn(async move {
