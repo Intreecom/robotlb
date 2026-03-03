@@ -3,12 +3,11 @@
 //! This module provides metrics for monitoring the operator's performance
 //! and the state of managed load balancers.
 
-use std::{
-    sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-    },
-    time::Instant,
+use std::{sync::Arc, time::Instant};
+
+use prometheus::{
+    register_counter_vec_with_registry, register_gauge_vec_with_registry, CounterVec, GaugeVec,
+    Opts, Registry, TextEncoder,
 };
 
 use crate::consts;
@@ -16,14 +15,14 @@ use crate::consts;
 const METRICS_PREFIX: &str = "robotlb";
 
 pub struct Metrics {
-    reconcile_total: AtomicU64,
-    reconcile_failures: AtomicU64,
-    reconcile_duration_secs: AtomicU64,
-    reconcile_duration_nanos: AtomicU64,
-    services_managed: AtomicU64,
-    hcloud_api_requests_total: AtomicU64,
-    hcloud_api_errors_total: AtomicU64,
-    leader_status: AtomicU64,
+    registry: Registry,
+    reconcile_total: CounterVec,
+    reconcile_failures: CounterVec,
+    reconcile_duration: GaugeVec,
+    services_managed: GaugeVec,
+    hcloud_api_requests_total: CounterVec,
+    hcloud_api_errors_total: CounterVec,
+    leader_status: GaugeVec,
 }
 
 impl Default for Metrics {
@@ -34,100 +33,145 @@ impl Default for Metrics {
 
 impl Metrics {
     #[must_use]
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
+        let registry = Registry::new();
+
+        let reconcile_total = register_counter_vec_with_registry!(
+            Opts::new(
+                format!("{METRICS_PREFIX}_reconcile_operations_total"),
+                "Total number of reconcile operations"
+            ),
+            &["controller"],
+            registry
+        )
+        .expect("create reconcile_total counter");
+
+        let reconcile_failures = register_counter_vec_with_registry!(
+            Opts::new(
+                format!("{METRICS_PREFIX}_reconcile_failures_total"),
+                "Total number of failed reconcile operations"
+            ),
+            &["controller"],
+            registry
+        )
+        .expect("create reconcile_failures counter");
+
+        let reconcile_duration = register_gauge_vec_with_registry!(
+            Opts::new(
+                format!("{METRICS_PREFIX}_reconcile_duration_seconds"),
+                "Duration of the last reconcile operation"
+            ),
+            &["controller"],
+            registry
+        )
+        .expect("create reconcile_duration gauge");
+
+        let services_managed = register_gauge_vec_with_registry!(
+            Opts::new(
+                format!("{METRICS_PREFIX}_services_managed"),
+                "Number of services currently managed by the operator"
+            ),
+            &["controller"],
+            registry
+        )
+        .expect("create services_managed gauge");
+
+        let hcloud_api_requests_total = register_counter_vec_with_registry!(
+            Opts::new(
+                format!("{METRICS_PREFIX}_hcloud_api_requests_total"),
+                "Total number of Hetzner Cloud API requests"
+            ),
+            &["controller"],
+            registry
+        )
+        .expect("create hcloud_api_requests_total counter");
+
+        let hcloud_api_errors_total = register_counter_vec_with_registry!(
+            Opts::new(
+                format!("{METRICS_PREFIX}_hcloud_api_errors_total"),
+                "Total number of Hetzner Cloud API errors"
+            ),
+            &["controller"],
+            registry
+        )
+        .expect("create hcloud_api_errors_total counter");
+
+        let leader_status = register_gauge_vec_with_registry!(
+            Opts::new(
+                format!("{METRICS_PREFIX}_leader_status"),
+                "Whether this instance is the leader (1=leader, 0=not leader)"
+            ),
+            &["controller"],
+            registry
+        )
+        .expect("create leader_status gauge");
+
         Self {
-            reconcile_total: AtomicU64::new(0),
-            reconcile_failures: AtomicU64::new(0),
-            reconcile_duration_secs: AtomicU64::new(0),
-            reconcile_duration_nanos: AtomicU64::new(0),
-            services_managed: AtomicU64::new(0),
-            hcloud_api_requests_total: AtomicU64::new(0),
-            hcloud_api_errors_total: AtomicU64::new(0),
-            leader_status: AtomicU64::new(0),
+            registry,
+            reconcile_total,
+            reconcile_failures,
+            reconcile_duration,
+            services_managed,
+            hcloud_api_requests_total,
+            hcloud_api_errors_total,
+            leader_status,
         }
     }
 
+    fn controller_label(&self) -> [&str; 1] {
+        [consts::ROBOTLB_LB_CLASS]
+    }
+
     pub fn inc_reconcile_total(&self) {
-        self.reconcile_total.fetch_add(1, Ordering::Relaxed);
+        self.reconcile_total
+            .with_label_values(&self.controller_label())
+            .inc();
     }
 
     pub fn inc_reconcile_failures(&self) {
-        self.reconcile_failures.fetch_add(1, Ordering::Relaxed);
+        self.reconcile_failures
+            .with_label_values(&self.controller_label())
+            .inc();
     }
 
     pub fn observe_reconcile_duration(&self, duration: std::time::Duration) {
-        let secs = duration.as_secs();
-        let nanos = u64::from(duration.subsec_nanos());
-        self.reconcile_duration_secs.store(secs, Ordering::Relaxed);
-        self.reconcile_duration_nanos
-            .store(nanos, Ordering::Relaxed);
+        let secs = duration.as_secs_f64();
+        self.reconcile_duration
+            .with_label_values(&self.controller_label())
+            .set(secs);
     }
 
     pub fn set_services_managed(&self, count: u64) {
-        self.services_managed.store(count, Ordering::Relaxed);
+        self.services_managed
+            .with_label_values(&self.controller_label())
+            .set(f64::from(u32::try_from(count).unwrap_or(u32::MAX)));
     }
 
     pub fn inc_hcloud_api_requests(&self) {
         self.hcloud_api_requests_total
-            .fetch_add(1, Ordering::Relaxed);
+            .with_label_values(&self.controller_label())
+            .inc();
     }
 
     pub fn inc_hcloud_api_errors(&self) {
-        self.hcloud_api_errors_total.fetch_add(1, Ordering::Relaxed);
+        self.hcloud_api_errors_total
+            .with_label_values(&self.controller_label())
+            .inc();
     }
 
     pub fn set_leader_status(&self, is_leader: bool) {
         self.leader_status
-            .store(u64::from(is_leader), Ordering::Relaxed);
+            .with_label_values(&self.controller_label())
+            .set(f64::from(is_leader));
     }
 
     #[must_use]
     pub fn export(&self) -> String {
-        let reconcile_total = self.reconcile_total.load(Ordering::Relaxed);
-        let reconcile_failures = self.reconcile_failures.load(Ordering::Relaxed);
-        let duration_secs = self.reconcile_duration_secs.load(Ordering::Relaxed);
-        let duration_nanos = self.reconcile_duration_nanos.load(Ordering::Relaxed);
-        let services_managed = self.services_managed.load(Ordering::Relaxed);
-        let hcloud_api_requests = self.hcloud_api_requests_total.load(Ordering::Relaxed);
-        let hcloud_api_errors = self.hcloud_api_errors_total.load(Ordering::Relaxed);
-        let leader_status = self.leader_status.load(Ordering::Relaxed);
-
-        let duration_total = f64::from(u32::try_from(duration_secs).unwrap_or(u32::MAX))
-            + f64::from(u32::try_from(duration_nanos).unwrap_or(0)) / 1e9;
-
-        format!(
-            r#"# HELP {prefix}_reconcile_operations_total Total number of reconcile operations
-# TYPE {prefix}_reconcile_operations_total counter
-{prefix}_reconcile_operations_total{{controller="{controller}"}} {reconcile_total}
-
-# HELP {prefix}_reconcile_failures_total Total number of failed reconcile operations
-# TYPE {prefix}_reconcile_failures_total counter
-{prefix}_reconcile_failures_total{{controller="{controller}"}} {reconcile_failures}
-
-# HELP {prefix}_reconcile_duration_seconds Duration of the last reconcile operation
-# TYPE {prefix}_reconcile_duration_seconds gauge
-{prefix}_reconcile_duration_seconds{{controller="{controller}"}} {duration_total}
-
-# HELP {prefix}_services_managed Number of services currently managed by the operator
-# TYPE {prefix}_services_managed gauge
-{prefix}_services_managed{{controller="{controller}"}} {services_managed}
-
-# HELP {prefix}_hcloud_api_requests_total Total number of Hetzner Cloud API requests
-# TYPE {prefix}_hcloud_api_requests_total counter
-{prefix}_hcloud_api_requests_total{{controller="{controller}"}} {hcloud_api_requests}
-
-# HELP {prefix}_hcloud_api_errors_total Total number of Hetzner Cloud API errors
-# TYPE {prefix}_hcloud_api_errors_total counter
-{prefix}_hcloud_api_errors_total{{controller="{controller}"}} {hcloud_api_errors}
-
-# HELP {prefix}_leader_status Whether this instance is the leader (1=leader, 0=not leader)
-# TYPE {prefix}_leader_status gauge
-{prefix}_leader_status{{controller="{controller}"}} {leader_status}
-
-"#,
-            prefix = METRICS_PREFIX,
-            controller = consts::ROBOTLB_LB_CLASS,
-        )
+        let encoder = TextEncoder::new();
+        let metric_families = self.registry.gather();
+        encoder
+            .encode_to_string(&metric_families)
+            .unwrap_or_default()
     }
 }
 
@@ -177,9 +221,9 @@ mod tests {
         metrics.set_leader_status(true);
 
         let output = metrics.export();
-        assert!(output.contains("robotlb_reconcile_operations_total{controller=\"robotlb\"} 2"));
-        assert!(output.contains("robotlb_reconcile_failures_total{controller=\"robotlb\"} 1"));
-        assert!(output.contains("robotlb_services_managed{controller=\"robotlb\"} 5"));
-        assert!(output.contains("robotlb_leader_status{controller=\"robotlb\"} 1"));
+        assert!(output.contains("robotlb_reconcile_operations_total"));
+        assert!(output.contains("robotlb_reconcile_failures_total"));
+        assert!(output.contains("robotlb_services_managed"));
+        assert!(output.contains("robotlb_leader_status"));
     }
 }
