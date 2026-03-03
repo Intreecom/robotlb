@@ -1,0 +1,68 @@
+{{- if and .Values.metrics.enabled .Values.metrics.prometheusRules.enabled -}}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "robotlb.fullname" . }}
+  labels:
+    {{- include "robotlb.labels" . | nindent 4 }}
+  {{- with .Values.metrics.prometheusRules.labels }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.metrics.prometheusRules.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  groups:
+    - name: robotlb.rules
+      rules:
+        - alert: RobotLBReconcileErrors
+          annotations:
+            description: 'RobotLB controller has experienced {{ "{{ $value }}" }} reconcile failures in the last 10 minutes.'
+            summary: RobotLB reconcile errors detected.
+          expr: increase(robotlb_reconcile_failures_total[10m]) > 0
+          for: 5m
+          labels:
+            severity: warning
+
+        - alert: RobotLBHighReconcileErrorRate
+          annotations:
+            description: 'RobotLB controller has a high error rate of {{ "{{ $value | humanizePercentage }}" }} in the last 10 minutes.'
+            summary: RobotLB high reconcile error rate.
+          expr: |
+            (
+              increase(robotlb_reconcile_failures_total[10m])
+              /
+              increase(robotlb_reconcile_operations_total[10m])
+            ) > 0.1
+          for: 5m
+          labels:
+            severity: critical
+
+        - alert: RobotLBNotLeader
+          annotations:
+            description: 'RobotLB instance {{ "{{ $labels.instance }}" }} is not the leader for more than 5 minutes.'
+            summary: RobotLB instance is not the leader.
+          expr: robotlb_leader_status == 0
+          for: 5m
+          labels:
+            severity: info
+
+        - alert: RobotLBHCloudAPIErrors
+          annotations:
+            description: 'RobotLB has experienced {{ "{{ $value }}" }} Hetzner Cloud API errors in the last 10 minutes.'
+            summary: RobotLB Hetzner Cloud API errors detected.
+          expr: increase(robotlb_hcloud_api_errors_total[10m]) > 0
+          for: 5m
+          labels:
+            severity: warning
+
+        - alert: RobotLBSlowReconcile
+          annotations:
+            description: 'RobotLB reconciliation took {{ "{{ $value }}" }} seconds.'
+            summary: RobotLB slow reconciliation detected.
+          expr: robotlb_reconcile_duration_seconds > 30
+          for: 5m
+          labels:
+            severity: warning
+{{- end }}

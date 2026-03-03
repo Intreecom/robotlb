@@ -79,3 +79,22 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: false
+    labels: {}
+    annotations: {}
+    interval: 30s
+    scrapeTimeout: 10s
+    relabelings: []
+    metricRelabelings: []
+  prometheusRules:
+    enabled: false
+    labels: {}
+    annotations: {}
+  grafanaDashboard:
+    enabled: false
+    labels: {}
+    annotations: {}
