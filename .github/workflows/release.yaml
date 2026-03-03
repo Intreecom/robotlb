@@ -31,7 +31,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64 # ,linux/arm64,linux/arm/v7  (uncomment once the fix for long builds is found).
+          platforms: linux/amd64  # ,linux/arm64,linux/arm/v7  (uncomment once the fix for long builds is found).
           push: true
           tags: ghcr.io/forkline/robotlb:latest,ghcr.io/forkline/robotlb:${{ github.ref_name }}
 

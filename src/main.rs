@@ -36,7 +36,10 @@ use hcloud::apis::configuration::Configuration as HCloudConfig;
 use kube_leader_election::{LeaseLock, LeaseLockParams, LeaseLockResult};
 use tokio_util::sync::CancellationToken;
 
-use crate::{config::OperatorConfig, controller::run, error::RobotLBResult, health::HealthServer, metrics::Metrics};
+use crate::{
+    config::OperatorConfig, controller::run, error::RobotLBResult, health::HealthServer,
+    metrics::Metrics,
+};
 
 pub mod config;
 pub mod consts;

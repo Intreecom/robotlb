@@ -5,8 +5,8 @@
 
 use std::{
     sync::{
-        atomic::{AtomicU64, Ordering},
         Arc,
+        atomic::{AtomicU64, Ordering},
     },
     time::Instant,
 };
@@ -24,6 +24,12 @@ pub struct Metrics {
     hcloud_api_requests_total: AtomicU64,
     hcloud_api_errors_total: AtomicU64,
     leader_status: AtomicU64,
+}
+
+impl Default for Metrics {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Metrics {
@@ -51,7 +57,7 @@ impl Metrics {
 
     pub fn observe_reconcile_duration(&self, duration: std::time::Duration) {
         let secs = duration.as_secs();
-        let nanos = duration.subsec_nanos() as u64;
+        let nanos = u64::from(duration.subsec_nanos());
         self.reconcile_duration_secs.store(secs, Ordering::Relaxed);
         self.reconcile_duration_nanos
             .store(nanos, Ordering::Relaxed);
@@ -72,7 +78,7 @@ impl Metrics {
 
     pub fn set_leader_status(&self, is_leader: bool) {
         self.leader_status
-            .store(if is_leader { 1 } else { 0 }, Ordering::Relaxed);
+            .store(u64::from(is_leader), Ordering::Relaxed);
     }
 
     #[must_use]
@@ -86,8 +92,8 @@ impl Metrics {
         let hcloud_api_errors = self.hcloud_api_errors_total.load(Ordering::Relaxed);
         let leader_status = self.leader_status.load(Ordering::Relaxed);
 
-        let duration_total =
-            f64::from(duration_secs as u32) + f64::from(duration_nanos as u32) / 1e9;
+        let duration_total = f64::from(u32::try_from(duration_secs).unwrap_or(u32::MAX))
+            + f64::from(u32::try_from(duration_nanos).unwrap_or(0)) / 1e9;
 
         format!(
             r#"# HELP {prefix}_reconcile_operations_total Total number of reconcile operations
@@ -141,7 +147,7 @@ impl ReconcileTimer {
         }
     }
 
-    pub fn set_failed(&mut self) {
+    pub const fn set_failed(&mut self) {
         self.failed = true;
     }
 }

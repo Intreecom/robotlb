@@ -16,7 +16,7 @@ repos:
     rev: v1.38.0
     hooks:
       - id: yamllint
-        exclude: ^helm/templates/
+        exclude: ^helm/(templates|dashboards)/
 
   - repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
     rev: v9.24.0

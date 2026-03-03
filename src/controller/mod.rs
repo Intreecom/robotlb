@@ -91,9 +91,7 @@ pub async fn reconcile_service(
         return Err(RobotLBError::SkipService);
     }
 
-    if let Err(e) = ensure_service_is_supported(&svc) {
-        return Err(e);
-    }
+    ensure_service_is_supported(&svc)?;
 
     tracing::info!("Starting service reconcilation");
 
@@ -120,11 +118,11 @@ pub async fn reconcile_service(
     }
 
     // Add finalizer if it's not there yet.
-    if !finalizers::check(&svc) {
-        if let Err(e) = finalizers::add(context.client.clone(), &svc).await {
-            timer.set_failed();
-            return Err(e);
-        }
+    if !finalizers::check(&svc)
+        && let Err(e) = finalizers::add(context.client.clone(), &svc).await
+    {
+        timer.set_failed();
+        return Err(e);
     }
 
     // Based on the service type, we will reconcile the load balancer.
