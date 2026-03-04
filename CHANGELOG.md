@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0](https://github.com/forkline/robotlb/tree/0.5.0) - 2026-03-04
+
+### Added
+
+- helm: Add Prometheus metrics support ([2e6eb91](https://github.com/forkline/robotlb/commit/2e6eb916b09f9e65e1da67891a42bea3d7b6913f))
+- Add Prometheus metrics endpoint ([c69e7ab](https://github.com/forkline/robotlb/commit/c69e7abc4c9b1c44000b0d5a8ef63108ff1afe6c))
+- Implement OpenTelemetry distributed tracing integration ([dbcfa8e](https://github.com/forkline/robotlb/commit/dbcfa8eb35bd62da0fadc2332c54ccc17dba3c9a))
+
+### Fixed
+
+- ci: Resolve pre-commit hook failures ([94f6254](https://github.com/forkline/robotlb/commit/94f62541370363fd4b9901eb0dae4991550f690a))
+- ci: Correct action field order in auto-tag workflow ([7a4f3d8](https://github.com/forkline/robotlb/commit/7a4f3d8b59a63573ef00d3d382fa85b79f656b6f))
+- ci: Downgrade invalid action versions ([77ec84f](https://github.com/forkline/robotlb/commit/77ec84faab22af4a883e3be9b685db010e6640b6))
+- Address clippy warnings in metrics module ([1bbe64a](https://github.com/forkline/robotlb/commit/1bbe64a4cc17c6dcc6d3de194e83f80f9964b7bd))
+- Resolve clippy warnings in metrics code ([a6f3aef](https://github.com/forkline/robotlb/commit/a6f3aef1f1b38ad6c8916202496dfa34d9d068b8))
+- Remove trailing whitespace in docs ([f824f6b](https://github.com/forkline/robotlb/commit/f824f6ba692100370fc53df8d337b590f42edc2d))
+- Remove trailing whitespace in docs ([d80b96e](https://github.com/forkline/robotlb/commit/d80b96eaedcc4063c85c79ea85a8c0fe61126160))
+- Resolve clippy warnings and formatting issues ([32012da](https://github.com/forkline/robotlb/commit/32012da6daf055f05185b4c9ddca1e781349d7f5))
+
+### Documentation
+
+- Add OpenTelemetry tracing integration trade-off analysis ([b02a625](https://github.com/forkline/robotlb/commit/b02a62511a72912e4ae6292630c55a2b7e3c14e9))
+
+### Refactor
+
+- metrics: Use prometheus crate for metrics ([ae5e42b](https://github.com/forkline/robotlb/commit/ae5e42b49f541667be30c1595957073cb63f7041))
+- Modularize codebase and add health checks ([b61c35a](https://github.com/forkline/robotlb/commit/b61c35a38178df79d7c1aefb2f7beea90565a819))
+- Use OpenTelemetry for metrics instead of prometheus crate ([9bf163b](https://github.com/forkline/robotlb/commit/9bf163b99f157a8a2ac9672e515235258bbbc08a))
+
+### Helm
+
+- Add OpenTelemetry tracing configuration support ([4876530](https://github.com/forkline/robotlb/commit/48765307cc7c6a54eb196c4dff89e189f287de48))
+
 ## [0.4.3](https://github.com/forkline/robotlb/tree/0.4.3) - 2026-02-27
 
 ### Added
