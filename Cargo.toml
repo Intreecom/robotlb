@@ -19,11 +19,14 @@ kube-leader-election = "0.43.0"
 thiserror = "2.0.3"
 opentelemetry = "0.31"
 opentelemetry_sdk = { version = "0.31", features = ["rt-tokio", "metrics"] }
+opentelemetry-otlp = { version = "0.31", features = ["trace", "grpc-tonic"] }
+opentelemetry-semantic-conventions = "0.31"
 tokio = { version = "1.41.1", features = ["macros", "rt-multi-thread", "signal", "net"] }
 tokio-util = "0.7"
 tower-http = { version = "0.6.6", features = ["util"] }
 tracing = "0.1.40"
-tracing-subscriber = "0.3.18"
+tracing-opentelemetry = "0.32"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator = "0.6"

@@ -105,6 +105,26 @@ pub struct OperatorConfig {
     // Log level of the operator.
     #[arg(long, env = "ROBOTLB_LOG_LEVEL", default_value = "INFO")]
     pub log_level: LevelFilter,
+
+    // Enable distributed tracing via OpenTelemetry.
+    #[arg(long, env = "ROBOTLB_TRACING_ENABLED", default_value = "false")]
+    pub tracing_enabled: bool,
+
+    // OTLP endpoint for trace export (e.g., http://tempo:4317).
+    #[arg(
+        long,
+        env = "ROBOTLB_OTLP_ENDPOINT",
+        default_value = "http://localhost:4317"
+    )]
+    pub otlp_endpoint: String,
+
+    // Sampling ratio for traces (1.0 = all, 0.1 = 10%).
+    #[arg(long, env = "ROBOTLB_TRACING_SAMPLE_RATIO", default_value = "1.0")]
+    pub tracing_sample_ratio: f64,
+
+    // Service name for traces.
+    #[arg(long, env = "ROBOTLB_SERVICE_NAME", default_value = "robotlb")]
+    pub service_name: String,
 }
 
 #[cfg(test)]
@@ -134,6 +154,10 @@ mod tests {
         assert_eq!(config.leader_election_lease_ttl_secs, 15);
         assert_eq!(config.leader_election_renew_interval_secs, 5);
         assert_eq!(config.log_level, LevelFilter::INFO);
+        assert!(!config.tracing_enabled);
+        assert_eq!(config.otlp_endpoint, "http://localhost:4317");
+        assert!((config.tracing_sample_ratio - 1.0).abs() < f64::EPSILON);
+        assert_eq!(config.service_name, "robotlb");
     }
 
     #[test]
@@ -168,6 +192,13 @@ mod tests {
             "10",
             "--log-level",
             "DEBUG",
+            "--tracing-enabled",
+            "--otlp-endpoint",
+            "http://tempo:4317",
+            "--tracing-sample-ratio",
+            "0.5",
+            "--service-name",
+            "robotlb-prod",
         ])
         .expect("config should parse");
 
@@ -186,5 +217,9 @@ mod tests {
         assert_eq!(config.leader_election_lease_ttl_secs, 30);
         assert_eq!(config.leader_election_renew_interval_secs, 10);
         assert_eq!(config.log_level, LevelFilter::DEBUG);
+        assert!(config.tracing_enabled);
+        assert_eq!(config.otlp_endpoint, "http://tempo:4317");
+        assert!((config.tracing_sample_ratio - 0.5).abs() < f64::EPSILON);
+        assert_eq!(config.service_name, "robotlb-prod");
     }
 }

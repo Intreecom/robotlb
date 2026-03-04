@@ -137,6 +137,10 @@ mod tests {
             leader_election_lease_ttl_secs: 15,
             leader_election_renew_interval_secs: 5,
             log_level: LevelFilter::INFO,
+            tracing_enabled: false,
+            otlp_endpoint: "http://localhost:4317".to_string(),
+            tracing_sample_ratio: 1.0,
+            service_name: "robotlb".to_string(),
         }
     }
 

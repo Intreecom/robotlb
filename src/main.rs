@@ -50,6 +50,7 @@ pub mod health;
 pub mod label_filter;
 pub mod lb;
 pub mod metrics;
+pub mod otel_tracing;
 pub mod prometheus_exporter;
 
 /// Shared context for the operator.
@@ -95,9 +96,9 @@ static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 async fn main() -> RobotLBResult<()> {
     dotenvy::dotenv().ok();
     let operator_config = OperatorConfig::parse();
-    tracing_subscriber::fmt()
-        .with_max_level(operator_config.log_level)
-        .init();
+
+    let mut tracing_guard = otel_tracing::init_tracing(&operator_config)
+        .map_err(|e| crate::error::RobotLBError::Generic(format!("Failed to initialize tracing: {e}")))?;
 
     let mut hcloud_conf = HCloudConfig::new();
     hcloud_conf.bearer_access_token = Some(operator_config.hcloud_token.clone());
@@ -165,6 +166,7 @@ async fn main() -> RobotLBResult<()> {
         _ = controller_task => {}
     }
 
+    tracing_guard.shutdown();
     tracing::info!("Shutdown complete");
     Ok(())
 }

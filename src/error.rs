@@ -91,4 +91,6 @@ pub enum RobotLBError {
     HcloudListLoadBalancersError(
         #[from] hcloud::apis::Error<hcloud::apis::load_balancers_api::ListLoadBalancersError>,
     ),
+    #[error("{0}")]
+    Generic(String),
 }
