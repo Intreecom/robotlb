@@ -38,12 +38,30 @@ spec:
             - /usr/local/bin/robotlb
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- with .Values.envs }}
+          {{- $hasEnvs := .Values.envs -}}
+          {{- $hasTracing := .Values.tracing.enabled -}}
+          {{- if or $hasEnvs $hasTracing }}
           env:
+            {{- with .Values.envs }}
             {{- range $key, $val := . }}
-              - name: {{ $key | quote }}
-                value: {{ $val | quote }}
-            {{ end -}}
+            - name: {{ $key | quote }}
+              value: {{ $val | quote }}
+            {{- end }}
+            {{- end }}
+            {{- if $hasTracing }}
+            - name: ROBOTLB_TRACING_ENABLED
+              value: "true"
+            - name: ROBOTLB_TRACING_OTLP_ENDPOINT
+              value: {{ .Values.tracing.otlp.endpoint | quote }}
+            - name: ROBOTLB_TRACING_OTLP_PROTOCOL
+              value: {{ .Values.tracing.otlp.protocol | quote }}
+            - name: ROBOTLB_TRACING_SAMPLING_RATIO
+              value: {{ .Values.tracing.samplingRatio | quote }}
+            {{- if .Values.tracing.serviceName }}
+            - name: ROBOTLB_TRACING_SERVICE_NAME
+              value: {{ .Values.tracing.serviceName | quote }}
+            {{- end }}
+            {{- end }}
           {{- end }}
           {{- with .Values.existingSecrets }}
           envFrom:

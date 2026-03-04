@@ -82,6 +82,9 @@ affinity: {}
 
 metrics:
   enabled: true
+  service:
+    enabled: true
+    annotations: {}
   serviceMonitor:
     enabled: false
     labels: {}
@@ -98,3 +101,11 @@ metrics:
     enabled: false
     labels: {}
     annotations: {}
+
+tracing:
+  enabled: false
+  otlp:
+    endpoint: ""
+    protocol: grpc
+  samplingRatio: 1.0
+  serviceName: ""
