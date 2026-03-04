@@ -97,8 +97,9 @@ async fn main() -> RobotLBResult<()> {
     dotenvy::dotenv().ok();
     let operator_config = OperatorConfig::parse();
 
-    let mut tracing_guard = otel_tracing::init_tracing(&operator_config)
-        .map_err(|e| crate::error::RobotLBError::Generic(format!("Failed to initialize tracing: {e}")))?;
+    let mut tracing_guard = otel_tracing::init_tracing(&operator_config).map_err(|e| {
+        crate::error::RobotLBError::Generic(format!("Failed to initialize tracing: {e}"))
+    })?;
 
     let mut hcloud_conf = HCloudConfig::new();
     hcloud_conf.bearer_access_token = Some(operator_config.hcloud_token.clone());

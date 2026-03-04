@@ -7,6 +7,7 @@ use clap::Parser;
 use tracing::level_filters::LevelFilter;
 
 #[derive(Debug, Clone, Parser)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct OperatorConfig {
     /// `HCloud` API token.
     #[arg(short = 't', long, env = "ROBOTLB_HCLOUD_TOKEN")]
