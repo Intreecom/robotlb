@@ -1,7 +1,7 @@
 # OpenTelemetry Tracing Integration Trade-off Analysis
 
 **Issue:** #51
-**Date:** 2026-03-04  
+**Date:** 2026-03-04
 **Status:** Analysis
 
 ## Executive Summary
