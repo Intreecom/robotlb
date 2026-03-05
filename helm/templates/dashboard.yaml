@@ -16,7 +16,10 @@ data:
         "list": [
           {
             "builtIn": 1,
-            "datasource": "-- Prometheus --",
+            "datasource": {
+              "type": "grafana",
+              "uid": "-- Grafana --"
+            },
             "enable": true,
             "hide": true,
             "iconColor": "rgba(0, 211, 255, 1)",
@@ -25,10 +28,10 @@ data:
           }
         ]
       },
-      "description": "RobotLB Operator Dashboard",
+      "description": "RobotLB Operator Dashboard - Monitors controller health, reconciliation operations, and Hetzner Cloud API interactions",
       "editable": true,
       "fiscalYearStartMonth": 0,
-      "graphTooltip": 0,
+      "graphTooltip": 1,
       "id": null,
       "links": [],
       "liveNow": false,
@@ -43,7 +46,7 @@ data:
           },
           "id": 1,
           "panels": [],
-          "title": "Overview",
+          "title": "📊 Overview",
           "type": "row"
         },
         {
@@ -51,6 +54,7 @@ data:
             "type": "prometheus",
             "uid": "${datasource}"
           },
+          "description": "Total number of Kubernetes services currently managed by RobotLB operator",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -72,7 +76,7 @@ data:
           },
           "gridPos": {
             "h": 4,
-            "w": 6,
+            "w": 4,
             "x": 0,
             "y": 1
           },
@@ -98,7 +102,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "robotlb_services_managed{controller=\"robotlb\"}",
+              "expr": "robotlb_services_managed{controller=\"$controller\"}",
               "refId": "A"
             }
           ],
@@ -106,594 +110,1338 @@ data:
           "type": "stat"
         },
         {
-          "datasource":{
+          "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
           },
+          "description": "Current leader election status: Leader (1) or Standby (0)",
           "fieldConfig": {
-            "defaults":{
-              "color":{
+            "defaults": {
+              "color": {
                 "mode": "thresholds"
               },
-              "mappings":[
+              "mappings": [
                 {
-                  "options":{
-                    "0":{
-                      "color":"yellow",
-                      "index":0,
-                      "text":"Standby"
+                  "options": {
+                    "0": {
+                      "color": "yellow",
+                      "index": 0,
+                      "text": "Standby"
                     },
-                    "1":{
-                      "color":"green",
-                      "index":1,
-                      "text":"Leader"
+                    "1": {
+                      "color": "green",
+                      "index": 1,
+                      "text": "Leader"
                     }
                   },
-                  "type":"value"
+                  "type": "value"
                 }
               ],
-              "thresholds":{
-                "mode":"absolute",
-                "steps":[
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
                   {
-                    "color":"green",
-                    "value":null
+                    "color": "green",
+                    "value": null
                   }
                 ]
               },
-              "unit":"none"
+              "unit": "none"
             },
-            "overrides":[]
+            "overrides": []
           },
-          "gridPos":{
+          "gridPos": {
             "h": 4,
-            "w": 6,
-            "x": 6,
+            "w": 4,
+            "x": 4,
             "y": 1
           },
           "id": 3,
-          "options":{
-            "colorMode":"value",
-            "graphMode":"area",
-            "justifyMode":"auto",
-            "orientation":"auto",
-            "reduceOptions":{
-              "calcs":[
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
                 "lastNotNull"
               ],
-              "fields":"",
-              "values":false
+              "fields": "",
+              "values": false
             },
-            "textMode":"auto"
+            "textMode": "auto"
           },
-          "pluginVersion":"11.0.0",
-          "targets":[
+          "pluginVersion": "11.0.0",
+          "targets": [
             {
-              "datasource":{
-                "type":"prometheus",
+              "datasource": {
+                "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr":"robotlb_leader_status{controller=\"robotlb\"}",
-              "refId":"A"
+              "expr": "robotlb_leader_status{controller=\"$controller\"}",
+              "refId": "A"
             }
           ],
-          "title":"Leader Status",
-          "type":"stat"
+          "title": "Leader Status",
+          "type": "stat"
         },
         {
-          "datasource":{
-            "type":"prometheus",
+          "datasource": {
+            "type": "prometheus",
             "uid": "${datasource}"
           },
-          "fieldConfig":{
-            "defaults":{
-              "color":{
-                "mode":"palette-classic"
+          "description": "Success rate of reconcile operations over the selected time range",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
               },
-              "custom":{
-                "axisBorderShow":false,
-                "axisCenteredZero":false,
-                "axisColorMode":"text",
-                "axisLabel":"",
-                "axisPlacement":"auto",
-                "barAlignment":0,
-                "drawStyle":"line",
-                "fillOpacity":0,
-                "gradientMode":"none",
-                "hideFrom":{
-                  "legend":false,
-                  "tooltip":false,
-                  "viz":false
-                },
-                "insertNulls":false,
-                "lineInterpolation":"linear",
-                "lineWidth":1,
-                "pointSize":5,
-                "scaleDistribution":{
-                  "type":"linear"
-                },
-                "showPoints":"auto",
-                "spanNulls":false,
-                "stacking":{
-                  "group":"A",
-                  "mode":"none"
-                },
-                "thresholdsStyle":{
-                  "mode":"off"
-                }
-              },
-              "mappings":[],
-              "thresholds":{
-                "mode":"absolute",
-                "steps":[
+              "decimals": 2,
+              "mappings": [],
+              "max": 100,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
                   {
-                    "color":"green",
-                    "value":null
+                    "color": "red",
+                    "value": null
                   },
                   {
-                    "color":"red",
-                    "value":80
+                    "color": "yellow",
+                    "value": 95
+                  },
+                  {
+                    "color": "green",
+                    "value": 99
                   }
                 ]
               },
-              "unit":"s"
+              "unit": "percent"
             },
-            "overrides":[]
+            "overrides": []
           },
-          "gridPos":{
+          "gridPos": {
             "h": 4,
-            "w": 12,
+            "w": 4,
+            "x": 8,
+            "y": 1
+          },
+          "id": 11,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
+          },
+          "pluginVersion": "11.0.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "(\n  sum(rate(robotlb_reconcile_operations_total{controller=\"$controller\"}[$__rate_interval]))\n  -\n  sum(rate(robotlb_reconcile_failures_total{controller=\"$controller\"}[$__rate_interval]))\n)\n/\nsum(rate(robotlb_reconcile_operations_total{controller=\"$controller\"}[$__rate_interval]))\n* 100\n",
+              "refId": "A"
+            }
+          ],
+          "title": "Reconcile Success Rate",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Current rate of reconcile operations per second",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "decimals": 2,
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
             "x": 12,
             "y": 1
           },
-          "id": 4,
-          "options":{
-            "legend":{
-              "calcs":[
-                "mean",
-                "max"
+          "id": 12,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
               ],
-              "displayMode":"list",
-              "placement":"bottom",
-              "showLegend":true
+              "fields": "",
+              "values": false
             },
-            "tooltip":{
-              "mode":"single",
-              "sort":"none"
-            }
+            "textMode": "auto"
           },
-          "targets":[
+          "pluginVersion": "11.0.0",
+          "targets": [
             {
-              "datasource":{
-                "type":"prometheus",
+              "datasource": {
+                "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr":"robotlb_reconcile_duration_seconds{controller=\"robotlb\"}",
-              "legendFormat":"Reconcile Duration",
-              "refId":"A"
+              "expr": "sum(rate(robotlb_reconcile_operations_total{controller=\"$controller\"}[$__rate_interval]))",
+              "refId": "A"
             }
           ],
-          "title":"Reconcile Duration",
-          "type":"timeseries"
+          "title": "Reconcile Rate",
+          "type": "stat"
         },
         {
-          "collapsed":false,
-          "gridPos":{
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Average duration of reconcile operations",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 1
+                  },
+                  {
+                    "color": "red",
+                    "value": 5
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 16,
+            "y": 1
+          },
+          "id": 4,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "mean"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
+          },
+          "pluginVersion": "11.0.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "rate(robotlb_reconcile_duration_seconds_sum{controller=\"$controller\"}[$__rate_interval])\n/\nrate(robotlb_reconcile_duration_seconds_count{controller=\"$controller\"}[$__rate_interval])\n",
+              "refId": "A"
+            }
+          ],
+          "title": "Avg Reconcile Duration",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Current rate of Hetzner Cloud API requests per second",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "decimals": 2,
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 4,
+            "w": 4,
+            "x": 20,
+            "y": 1
+          },
+          "id": 13,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto"
+          },
+          "pluginVersion": "11.0.0",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum(rate(robotlb_hcloud_api_requests_total{controller=\"$controller\"}[$__rate_interval]))",
+              "refId": "A"
+            }
+          ],
+          "title": "API Request Rate",
+          "type": "stat"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
             "h": 1,
             "w": 24,
             "x": 0,
             "y": 5
           },
           "id": 5,
-          "panels":[],
-          "title":"Operations",
-          "type":"row"
+          "panels": [],
+          "title": "⚙️ Reconciliation Performance",
+          "type": "row"
         },
         {
-          "datasource":{
-            "type":"prometheus",
+          "datasource": {
+            "type": "prometheus",
             "uid": "${datasource}"
           },
-          "fieldConfig":{
-            "defaults":{
-              "color":{
-                "mode":"palette-classic"
+          "description": "Rate of reconcile operations per second over time",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
               },
-              "custom":{
-                "axisBorderShow":false,
-                "axisCenteredZero":false,
-                "axisColorMode":"text",
-                "axisLabel":"",
-                "axisPlacement":"auto",
-                "barAlignment":0,
-                "drawStyle":"line",
-                "fillOpacity":10,
-                "gradientMode":"none",
-                "hideFrom":{
-                  "legend":false,
-                  "tooltip":false,
-                  "viz":false
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
                 },
-                "insertNulls":false,
-                "lineInterpolation":"linear",
-                "lineWidth":1,
-                "pointSize":5,
-                "scaleDistribution":{
-                  "type":"linear"
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
                 },
-                "showPoints":"never",
-                "spanNulls":false,
-                "stacking":{
-                  "group":"A",
-                  "mode":"none"
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
                 },
-                "thresholdsStyle":{
-                  "mode":"off"
+                "thresholdsStyle": {
+                  "mode": "off"
                 }
               },
-              "mappings":[],
-              "thresholds":{
-                "mode":"absolute",
-                "steps":[
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
                   {
-                    "color":"green",
-                    "value":null
+                    "color": "green",
+                    "value": null
                   }
                 ]
               },
-              "unit":"ops"
+              "unit": "ops"
             },
-            "overrides":[]
+            "overrides": []
           },
-          "gridPos":{
+          "gridPos": {
             "h": 8,
             "w": 12,
             "x": 0,
             "y": 6
           },
           "id": 6,
-          "options":{
-            "legend":{
-              "calcs":[
-                "rate"
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
               ],
-              "displayMode":"list",
-              "placement":"bottom",
-              "showLegend":true
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
             },
-            "tooltip":{
-              "mode":"multi",
-              "sort":"none"
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
             }
           },
-          "targets":[
+          "targets": [
             {
-              "datasource":{
-                "type":"prometheus",
+              "datasource": {
+                "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr":"rate(robotlb_reconcile_operations_total{controller=\"robotlb\"}[5m])",
-              "legendFormat":"Reconciles/sec",
-              "refId":"A"
+              "expr": "rate(robotlb_reconcile_operations_total{controller=\"$controller\"}[$__rate_interval])",
+              "legendFormat": "Reconciles/sec",
+              "refId": "A"
             }
           ],
-          "title":"Reconcile Rate",
-          "type":"timeseries"
+          "title": "Reconcile Operations Rate",
+          "type": "timeseries"
         },
         {
-          "datasource":{
-            "type":"prometheus",
+          "datasource": {
+            "type": "prometheus",
             "uid": "${datasource}"
           },
-          "fieldConfig":{
-            "defaults":{
-              "color":{
-                "mode":"palette-classic"
+          "description": "Duration of reconcile operations over time",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
               },
-              "custom":{
-                "axisBorderShow":false,
-                "axisCenteredZero":false,
-                "axisColorMode":"text",
-                "axisLabel":"",
-                "axisPlacement":"auto",
-                "barAlignment":0,
-                "drawStyle":"line",
-                "fillOpacity":10,
-                "gradientMode":"none",
-                "hideFrom":{
-                  "legend":false,
-                  "tooltip":false,
-                  "viz":false
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
                 },
-                "insertNulls":false,
-                "lineInterpolation":"linear",
-                "lineWidth":1,
-                "pointSize":5,
-                "scaleDistribution":{
-                  "type":"linear"
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
                 },
-                "showPoints":"never",
-                "spanNulls":false,
-                "stacking":{
-                  "group":"A",
-                  "mode":"none"
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
                 },
-                "thresholdsStyle":{
-                  "mode":"off"
+                "thresholdsStyle": {
+                  "mode": "off"
                 }
               },
-              "mappings":[],
-              "thresholds":{
-                "mode":"absolute",
-                "steps":[
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
                   {
-                    "color":"green",
-                    "value":null
+                    "color": "green",
+                    "value": null
                   },
                   {
-                    "color":"red",
-                    "value":0.01
+                    "color": "red",
+                    "value": 5
                   }
                 ]
               },
-              "unit":"ops"
+              "unit": "s"
             },
-            "overrides":[]
+            "overrides": []
           },
-          "gridPos":{
+          "gridPos": {
             "h": 8,
             "w": 12,
             "x": 12,
             "y": 6
           },
-          "id": 7,
-          "options":{
-            "legend":{
-              "calcs":[
-                "rate"
+          "id": 14,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
               ],
-              "displayMode":"list",
-              "placement":"bottom",
-              "showLegend":true
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
             },
-            "tooltip":{
-              "mode":"multi",
-              "sort":"none"
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
             }
           },
-          "targets":[
+          "targets": [
             {
-              "datasource":{
-                "type":"prometheus",
+              "datasource": {
+                "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr":"rate(robotlb_reconcile_failures_total{controller=\"robotlb\"}[5m])",
-              "legendFormat":"Failures/sec",
-              "refId":"A"
+              "expr": "rate(robotlb_reconcile_duration_seconds_sum{controller=\"$controller\"}[$__rate_interval])\n/\nrate(robotlb_reconcile_duration_seconds_count{controller=\"$controller\"}[$__rate_interval])\n",
+              "legendFormat": "Avg Duration",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "histogram_quantile(0.50, sum(rate(robotlb_reconcile_duration_seconds_bucket{controller=\"$controller\"}[$__rate_interval])) by (le))",
+              "legendFormat": "p50",
+              "refId": "B"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "histogram_quantile(0.95, sum(rate(robotlb_reconcile_duration_seconds_bucket{controller=\"$controller\"}[$__rate_interval])) by (le))",
+              "legendFormat": "p95",
+              "refId": "C"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "histogram_quantile(0.99, sum(rate(robotlb_reconcile_duration_seconds_bucket{controller=\"$controller\"}[$__rate_interval])) by (le))",
+              "legendFormat": "p99",
+              "refId": "D"
             }
           ],
-          "title":"Failure Rate",
-          "type":"timeseries"
+          "title": "Reconcile Duration",
+          "type": "timeseries"
         },
         {
-          "collapsed":false,
-          "gridPos":{
+          "collapsed": false,
+          "gridPos": {
             "h": 1,
             "w": 24,
             "x": 0,
             "y": 14
           },
           "id": 8,
-          "panels":[],
-          "title":"Hetzner Cloud API",
-          "type":"row"
+          "panels": [],
+          "title": "❌ Errors & Failures",
+          "type": "row"
         },
         {
-          "datasource":{
-            "type":"prometheus",
+          "datasource": {
+            "type": "prometheus",
             "uid": "${datasource}"
           },
-          "fieldConfig":{
-            "defaults":{
-              "color":{
-                "mode":"palette-classic"
+          "description": "Rate of reconcile failures per second",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
               },
-              "custom":{
-                "axisBorderShow":false,
-                "axisCenteredZero":false,
-                "axisColorMode":"text",
-                "axisLabel":"",
-                "axisPlacement":"auto",
-                "barAlignment":0,
-                "drawStyle":"line",
-                "fillOpacity":10,
-                "gradientMode":"none",
-                "hideFrom":{
-                  "legend":false,
-                  "tooltip":false,
-                  "viz":false
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
                 },
-                "insertNulls":false,
-                "lineInterpolation":"linear",
-                "lineWidth":1,
-                "pointSize":5,
-                "scaleDistribution":{
-                  "type":"linear"
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
                 },
-                "showPoints":"never",
-                "spanNulls":false,
-                "stacking":{
-                  "group":"A",
-                  "mode":"none"
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
                 },
-                "thresholdsStyle":{
-                  "mode":"off"
+                "thresholdsStyle": {
+                  "mode": "off"
                 }
               },
-              "mappings":[],
-              "thresholds":{
-                "mode":"absolute",
-                "steps":[
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
                   {
-                    "color":"green",
-                    "value":null
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.01
                   }
                 ]
               },
-              "unit":"ops"
+              "unit": "ops"
             },
-            "overrides":[]
+            "overrides": []
           },
-          "gridPos":{
+          "gridPos": {
             "h": 8,
             "w": 12,
             "x": 0,
             "y": 15
           },
-          "id": 9,
-          "options":{
-            "legend":{
-              "calcs":[
-                "rate"
+          "id": 7,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
               ],
-              "displayMode":"list",
-              "placement":"bottom",
-              "showLegend":true
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
             },
-            "tooltip":{
-              "mode":"multi",
-              "sort":"none"
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
             }
           },
-          "targets":[
+          "targets": [
             {
-              "datasource":{
-                "type":"prometheus",
+              "datasource": {
+                "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr":"rate(robotlb_hcloud_api_requests_total{controller=\"robotlb\"}[5m])",
-              "legendFormat":"Requests/sec",
-              "refId":"A"
+              "expr": "rate(robotlb_reconcile_failures_total{controller=\"$controller\"}[$__rate_interval])",
+              "legendFormat": "Failures/sec",
+              "refId": "A"
             }
           ],
-          "title":"API Request Rate",
-          "type":"timeseries"
+          "title": "Reconcile Failure Rate",
+          "type": "timeseries"
         },
         {
-          "datasource":{
-            "type":"prometheus",
+          "datasource": {
+            "type": "prometheus",
             "uid": "${datasource}"
           },
-          "fieldConfig":{
-            "defaults":{
-              "color":{
-                "mode":"palette-classic"
+          "description": "Cumulative count of reconcile operations vs failures",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
               },
-              "custom":{
-                "axisBorderShow":false,
-                "axisCenteredZero":false,
-                "axisColorMode":"text",
-                "axisLabel":"",
-                "axisPlacement":"auto",
-                "barAlignment":0,
-                "drawStyle":"line",
-                "fillOpacity":10,
-                "gradientMode":"none",
-                "hideFrom":{
-                  "legend":false,
-                  "tooltip":false,
-                  "viz":false
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
                 },
-                "insertNulls":false,
-                "lineInterpolation":"linear",
-                "lineWidth":1,
-                "pointSize":5,
-                "scaleDistribution":{
-                  "type":"linear"
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
                 },
-                "showPoints":"never",
-                "spanNulls":false,
-                "stacking":{
-                  "group":"A",
-                  "mode":"none"
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
                 },
-                "thresholdsStyle":{
-                  "mode":"off"
+                "thresholdsStyle": {
+                  "mode": "off"
                 }
               },
-              "mappings":[],
-              "thresholds":{
-                "mode":"absolute",
-                "steps":[
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
                   {
-                    "color":"green",
-                    "value":null
-                  },
-                  {
-                    "color":"red",
-                    "value":0.001
+                    "color": "green",
+                    "value": null
                   }
                 ]
               },
-              "unit":"ops"
+              "unit": "short"
             },
-            "overrides":[]
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Total Operations"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "green",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Total Failures"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "red",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              }
+            ]
           },
-          "gridPos":{
+          "gridPos": {
             "h": 8,
             "w": 12,
             "x": 12,
             "y": 15
           },
-          "id": 10,
-          "options":{
-            "legend":{
-              "calcs":[
-                "rate"
+          "id": 15,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull"
               ],
-              "displayMode":"list",
-              "placement":"bottom",
-              "showLegend":true
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
             },
-            "tooltip":{
-              "mode":"multi",
-              "sort":"none"
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
             }
           },
-          "targets":[
+          "targets": [
             {
-              "datasource":{
-                "type":"prometheus",
+              "datasource": {
+                "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr":"rate(robotlb_hcloud_api_errors_total{controller=\"robotlb\"}[5m])",
-              "legendFormat":"Errors/sec",
-              "refId":"A"
+              "expr": "robotlb_reconcile_operations_total{controller=\"$controller\"}",
+              "legendFormat": "Total Operations",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "robotlb_reconcile_failures_total{controller=\"$controller\"}",
+              "legendFormat": "Total Failures",
+              "refId": "B"
             }
           ],
-          "title":"API Error Rate",
-          "type":"timeseries"
+          "title": "Operations vs Failures",
+          "type": "timeseries"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 23
+          },
+          "id": 9,
+          "panels": [],
+          "title": "☁️ Hetzner Cloud API",
+          "type": "row"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Rate of Hetzner Cloud API requests per second",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 24
+          },
+          "id": 16,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "rate(robotlb_hcloud_api_requests_total{controller=\"$controller\"}[$__rate_interval])",
+              "legendFormat": "Requests/sec",
+              "refId": "A"
+            }
+          ],
+          "title": "API Request Rate",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Rate of Hetzner Cloud API errors per second",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.001
+                  }
+                ]
+              },
+              "unit": "ops"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 24
+          },
+          "id": 17,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "rate(robotlb_hcloud_api_errors_total{controller=\"$controller\"}[$__rate_interval])",
+              "legendFormat": "Errors/sec",
+              "refId": "A"
+            }
+          ],
+          "title": "API Error Rate",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "API error rate as a percentage of total requests",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "max": 100,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "yellow",
+                    "value": 1
+                  },
+                  {
+                    "color": "red",
+                    "value": 5
+                  }
+                ]
+              },
+              "unit": "percent"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 32
+          },
+          "id": 18,
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "(\n  sum(rate(robotlb_hcloud_api_errors_total{controller=\"$controller\"}[$__rate_interval]))\n  /\n  sum(rate(robotlb_hcloud_api_requests_total{controller=\"$controller\"}[$__rate_interval]))\n) * 100\n",
+              "legendFormat": "Error Rate %",
+              "refId": "A"
+            }
+          ],
+          "title": "API Error Percentage",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Total cumulative API requests and errors",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Total Requests"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "blue",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "Total Errors"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "red",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 32
+          },
+          "id": 19,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "robotlb_hcloud_api_requests_total{controller=\"$controller\"}",
+              "legendFormat": "Total Requests",
+              "refId": "A"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "robotlb_hcloud_api_errors_total{controller=\"$controller\"}",
+              "legendFormat": "Total Errors",
+              "refId": "B"
+            }
+          ],
+          "title": "API Requests vs Errors",
+          "type": "timeseries"
         }
       ],
-      "refresh":"",
-      "schemaVersion":38,
-      "style":"dark",
-      "tags":[
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": [
         "robotlb",
-        "operator"
+        "operator",
+        "kubernetes",
+        "hetzner"
       ],
-      "templating":{
-        "list":[]
+      "templating": {
+        "list": [
+          {
+            "current": {
+              "selected": false,
+              "text": "Prometheus",
+              "value": "Prometheus"
+            },
+            "hide": 0,
+            "includeAll": false,
+            "label": "Data Source",
+            "multi": false,
+            "name": "datasource",
+            "options": [],
+            "query": "prometheus",
+            "queryValue": "",
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "type": "datasource"
+          },
+          {
+            "allValue": ".+",
+            "current": {
+              "selected": true,
+              "text": [
+                "All"
+              ],
+              "value": [
+                "$__all"
+              ]
+            },
+            "datasource": {
+              "type": "prometheus",
+              "uid": "${datasource}"
+            },
+            "definition": "label_values(robotlb_services_managed, controller)",
+            "hide": 0,
+            "includeAll": true,
+            "label": "Controller",
+            "multi": true,
+            "name": "controller",
+            "options": [],
+            "query": {
+              "query": "label_values(robotlb_services_managed, controller)",
+              "refId": "PrometheusVariableQueryEditor-VariableQuery"
+            },
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "sort": 1,
+            "type": "query"
+          }
+        ]
       },
-      "time":{
-        "from":"now-1h",
-        "to":"now"
+      "time": {
+        "from": "now-1h",
+        "to": "now"
       },
-      "timepicker":{},
-      "timezone":"",
-      "title":"RobotLB",
-      "uid":"robotlb",
-      "version":1,
-      "weekStart":""
+      "timepicker": {
+        "refresh_intervals": [
+          "5s",
+          "10s",
+          "30s",
+          "1m",
+          "5m",
+          "15m",
+          "30m",
+          "1h",
+          "2h",
+          "1d"
+        ]
+      },
+      "timezone": "browser",
+      "title": "RobotLB",
+      "uid": "robotlb",
+      "version": 2,
+      "weekStart": ""
     }
 {{- end }}

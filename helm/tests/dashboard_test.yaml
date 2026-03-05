@@ -86,11 +86,92 @@ tests:
           path: data["robotlb-dashboard.json"]
           pattern: 'robotlb_hcloud_api_errors_total'
 
-  - it: should use correct controller label in queries
+  - it: should use template variable for controller label in queries
     set:
       metrics.enabled: true
       metrics.grafanaDashboard.enabled: true
     asserts:
       - matchRegex:
           path: data["robotlb-dashboard.json"]
-          pattern: 'controller=\\"robotlb\\"'
+          pattern: 'controller=\\"\$controller\\"'
+
+  - it: should include template variables for flexibility
+    set:
+      metrics.enabled: true
+      metrics.grafanaDashboard.enabled: true
+    asserts:
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: '"name": "datasource"'
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: '"name": "controller"'
+
+  - it: should use modern Grafana schema version
+    set:
+      metrics.enabled: true
+      metrics.grafanaDashboard.enabled: true
+    asserts:
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: '"schemaVersion": 39'
+
+  - it: should include all dashboard sections
+    set:
+      metrics.enabled: true
+      metrics.grafanaDashboard.enabled: true
+    asserts:
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: 'Overview'
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: 'Reconciliation Performance'
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: 'Errors.*Failures'
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: 'Hetzner Cloud API'
+
+  - it: should include percentile metrics in duration panel
+    set:
+      metrics.enabled: true
+      metrics.grafanaDashboard.enabled: true
+    asserts:
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: 'histogram_quantile.*0\.50'
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: 'histogram_quantile.*0\.95'
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: 'histogram_quantile.*0\.99'
+
+  - it: should calculate success rate correctly
+    set:
+      metrics.enabled: true
+      metrics.grafanaDashboard.enabled: true
+    asserts:
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: 'Reconcile Success Rate'
+
+  - it: should include appropriate dashboard tags
+    set:
+      metrics.enabled: true
+      metrics.grafanaDashboard.enabled: true
+    asserts:
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: '"tags".*"robotlb"'
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: '"tags".*"operator"'
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: '"tags".*"kubernetes"'
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: '"tags".*"hetzner"'
