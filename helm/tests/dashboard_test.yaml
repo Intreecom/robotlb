@@ -165,13 +165,13 @@ tests:
     asserts:
       - matchRegex:
           path: data["robotlb-dashboard.json"]
-          pattern: '"tags".*"robotlb"'
+          pattern: '"tags"[\s\S]*"robotlb"'
       - matchRegex:
           path: data["robotlb-dashboard.json"]
-          pattern: '"tags".*"operator"'
+          pattern: '"tags"[\s\S]*"operator"'
       - matchRegex:
           path: data["robotlb-dashboard.json"]
-          pattern: '"tags".*"kubernetes"'
+          pattern: '"tags"[\s\S]*"kubernetes"'
       - matchRegex:
           path: data["robotlb-dashboard.json"]
-          pattern: '"tags".*"hetzner"'
+          pattern: '"tags"[\s\S]*"hetzner"'
