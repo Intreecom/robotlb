@@ -1,0 +1,96 @@
+suite: Dashboard
+templates:
+  - dashboard.yaml
+tests:
+  - it: should not render dashboard by default
+    set:
+      metrics.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render dashboard when metrics disabled
+    set:
+      metrics.enabled: false
+      metrics.grafanaDashboard.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render dashboard when both enabled
+    set:
+      metrics.enabled: true
+      metrics.grafanaDashboard.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-robotlb-dashboard
+      - isNotNull:
+          path: data["robotlb-dashboard.json"]
+
+  - it: should include correct labels
+    set:
+      metrics.enabled: true
+      metrics.grafanaDashboard.enabled: true
+    asserts:
+      - equal:
+          path: metadata.labels["grafana_dashboard"]
+          value: "1"
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: robotlb
+
+  - it: should include custom labels when provided
+    set:
+      metrics.enabled: true
+      metrics.grafanaDashboard.enabled: true
+      metrics.grafanaDashboard.labels:
+        custom_label: custom_value
+        another_label: another_value
+    asserts:
+      - equal:
+          path: metadata.labels["custom_label"]
+          value: custom_value
+      - equal:
+          path: metadata.labels["another_label"]
+          value: another_value
+
+  - it: should contain all expected metrics in dashboard
+    set:
+      metrics.enabled: true
+      metrics.grafanaDashboard.enabled: true
+    asserts:
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: 'robotlb_services_managed'
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: 'robotlb_leader_status'
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: 'robotlb_reconcile_duration_seconds'
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: 'robotlb_reconcile_operations_total'
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: 'robotlb_reconcile_failures_total'
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: 'robotlb_hcloud_api_requests_total'
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: 'robotlb_hcloud_api_errors_total'
+
+  - it: should use correct controller label in queries
+    set:
+      metrics.enabled: true
+      metrics.grafanaDashboard.enabled: true
+    asserts:
+      - matchRegex:
+          path: data["robotlb-dashboard.json"]
+          pattern: 'controller=\\"robotlb\\"'

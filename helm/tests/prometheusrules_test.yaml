@@ -1,0 +1,81 @@
+suite: Prometheus Rules
+templates:
+  - prometheusrules.yaml
+tests:
+  - it: should not render prometheus rules by default
+    set:
+      metrics.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should not render prometheus rules when metrics disabled
+    set:
+      metrics.enabled: false
+      metrics.prometheusRules.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should render prometheus rules when both enabled
+    set:
+      metrics.enabled: true
+      metrics.prometheusRules.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PrometheusRule
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-robotlb
+
+  - it: should include all expected alerts
+    set:
+      metrics.enabled: true
+      metrics.prometheusRules.enabled: true
+    asserts:
+      - equal:
+          path: spec.groups[0].name
+          value: robotlb.rules
+      - lengthEqual:
+          path: spec.groups[0].rules
+          count: 5
+
+  - it: should include correct metrics in alerts
+    set:
+      metrics.enabled: true
+      metrics.prometheusRules.enabled: true
+    documentSelector:
+      path: kind
+      value: PrometheusRule
+    asserts:
+      - matchRegex:
+          path: spec.groups[0].rules[?(@.alert == "RobotLBReconcileErrors")].expr
+          pattern: 'robotlb_reconcile_failures_total'
+      - matchRegex:
+          path: spec.groups[0].rules[?(@.alert == "RobotLBHighReconcileErrorRate")].expr
+          pattern: 'robotlb_reconcile_failures_total'
+      - matchRegex:
+          path: spec.groups[0].rules[?(@.alert == "RobotLBHighReconcileErrorRate")].expr
+          pattern: 'robotlb_reconcile_operations_total'
+      - matchRegex:
+          path: spec.groups[0].rules[?(@.alert == "RobotLBNotLeader")].expr
+          pattern: 'robotlb_leader_status'
+      - matchRegex:
+          path: spec.groups[0].rules[?(@.alert == "RobotLBHCloudAPIErrors")].expr
+          pattern: 'robotlb_hcloud_api_errors_total'
+      - matchRegex:
+          path: spec.groups[0].rules[?(@.alert == "RobotLBSlowReconcile")].expr
+          pattern: 'robotlb_reconcile_duration_seconds'
+
+  - it: should include custom labels when provided
+    set:
+      metrics.enabled: true
+      metrics.prometheusRules.enabled: true
+      metrics.prometheusRules.labels:
+        custom_label: custom_value
+    asserts:
+      - equal:
+          path: metadata.labels["custom_label"]
+          value: custom_value

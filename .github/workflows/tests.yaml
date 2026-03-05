@@ -14,3 +14,12 @@ jobs:
           override: true
           components: rustfmt, clippy
       - uses: pre-commit/action@v3.0.1
+
+  helm-unittest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Helm unittest plugin
+        run: helm plugin install https://github.com/helm-unittest/helm-unittest.git
+      - name: Run Helm unittests
+        run: helm unittest helm

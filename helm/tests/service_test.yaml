@@ -1,0 +1,44 @@
+suite: Service
+templates:
+  - service.yaml
+tests:
+  - it: should render service by default
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-robotlb-metrics
+
+  - it: should not render service when metrics.service disabled
+    set:
+      metrics.service.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: should use correct port
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 8080
+      - equal:
+          path: spec.ports[0].targetPort
+          value: 8080
+      - equal:
+          path: spec.ports[0].name
+          value: metrics
+      - equal:
+          path: spec.ports[0].protocol
+          value: TCP
+
+  - it: should include annotations when provided
+    set:
+      metrics.service.annotations:
+        custom_annotation: custom_value
+    asserts:
+      - equal:
+          path: metadata.annotations.custom_annotation
+          value: custom_value
