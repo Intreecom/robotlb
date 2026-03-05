@@ -1,8 +1,8 @@
 use std::{sync::Arc, time::Instant};
 
 use opentelemetry::{
-    KeyValue,
     metrics::{Counter, Gauge, Histogram, Meter},
+    KeyValue,
 };
 use tokio::time::Instant as TokioInstant;
 use tracing::debug;
@@ -37,7 +37,9 @@ impl Metrics {
         let reconcile_duration = meter
             .f64_histogram("reconcile_duration_seconds")
             .with_description("Duration of reconcile operations")
-            .with_boundaries(vec![0.1, 0.5, 1.0, 5.0, 10.0])
+            .with_boundaries(vec![
+                0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
+            ])
             .build();
 
         let services_managed = meter
