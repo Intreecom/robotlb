@@ -1,8 +1,8 @@
 use std::{sync::Arc, time::Instant};
 
 use opentelemetry::{
-    metrics::{Counter, Gauge, Histogram, Meter},
     KeyValue,
+    metrics::{Counter, Gauge, Histogram, Meter},
 };
 use tokio::time::Instant as TokioInstant;
 use tracing::debug;
