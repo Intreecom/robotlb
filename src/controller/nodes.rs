@@ -186,9 +186,7 @@ async fn get_nodes_by_selector(
 mod tests {
     use super::*;
     use crate::test_utils::fixtures::{service_spec, service_with_spec};
-    use k8s_openapi::{
-        api::core::v1::{NodeAddress, NodeStatus, ServicePort},
-    };
+    use k8s_openapi::api::core::v1::{NodeAddress, NodeStatus, ServicePort};
 
     #[test]
     fn derive_targets_picks_matching_address_type() {

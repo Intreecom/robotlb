@@ -10,6 +10,7 @@ pub mod fixtures {
         apimachinery::pkg::apis::meta::v1::ObjectMeta,
     };
 
+    #[must_use]
     pub fn service_with_spec(spec: ServiceSpec) -> Service {
         Service {
             metadata: ObjectMeta {

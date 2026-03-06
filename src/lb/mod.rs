@@ -414,12 +414,12 @@ impl LoadBalancer {
         }
 
         let desired_network = self.get_network().await?.map(|network| network.id);
-        
-        let is_attached = self.detach_unwanted_networks(hcloud_balancer, desired_network).await?;
-        
-        if !is_attached
-            && let Some(network_id) = desired_network
-        {
+
+        let is_attached = self
+            .detach_unwanted_networks(hcloud_balancer, desired_network)
+            .await?;
+
+        if !is_attached && let Some(network_id) = desired_network {
             tracing::info!("Attaching balancer to network {}", network_id);
             api::attach_to_network(
                 &self.hcloud_config,
@@ -438,28 +438,34 @@ impl LoadBalancer {
         desired_network: Option<i64>,
     ) -> RobotLBResult<bool> {
         let mut is_attached = false;
-        
+
         for private_net in &hcloud_balancer.private_net {
             let Some(private_net_id) = private_net.network else {
                 continue;
             };
-            
-            if desired_network == Some(private_net_id) 
-                && private_net.ip.as_ref().is_some_and(|ip| self.matches_desired_ip(ip)) {
+
+            if desired_network == Some(private_net_id)
+                && private_net
+                    .ip
+                    .as_ref()
+                    .is_some_and(|ip| self.matches_desired_ip(ip))
+            {
                 is_attached = true;
                 continue;
             }
-            
+
             tracing::info!("Detaching balancer from network {}", private_net_id);
             api::detach_from_network(&self.hcloud_config, hcloud_balancer.id, private_net_id)
                 .await?;
         }
-        
+
         Ok(is_attached)
     }
 
     fn matches_desired_ip(&self, current_ip: &str) -> bool {
-        self.private_ip.as_ref().is_none_or(|desired_ip| desired_ip == current_ip)
+        self.private_ip
+            .as_ref()
+            .is_none_or(|desired_ip| desired_ip == current_ip)
     }
 
     /// Cleanup the load balancer.
