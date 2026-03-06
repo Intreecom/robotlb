@@ -412,55 +412,57 @@ impl LoadBalancer {
         &self,
         hcloud_balancer: &hcloud::models::LoadBalancer,
     ) -> RobotLBResult<()> {
-        // If the network name is not provided, and load balancer is not attached to any network,
-        // we can skip this step.
         if self.network_name.is_none() && hcloud_balancer.private_net.is_empty() {
             return Ok(());
         }
 
         let desired_network = self.get_network().await?.map(|network| network.id);
-        // If the network name is not provided, but the load balancer is attached to a network,
-        // we need to detach it from the network.
-        let mut contain_desired_network = false;
-        if !hcloud_balancer.private_net.is_empty() {
-            for private_net in &hcloud_balancer.private_net {
-                let Some(private_net_id) = private_net.network else {
-                    continue;
-                };
-                // The load balancer is attached to a target network.
-                if desired_network == Some(private_net_id) {
-                    // Specific IP was provided, we need to check if the IP is the same.
-                    if self.private_ip.is_some() {
-                        // if IPs match, we can leave everything as it is.
-                        if private_net.ip == self.private_ip {
-                            contain_desired_network = true;
-                            continue;
-                        }
-                    } else {
-                        // No specific IP was provided, we can leave everything as it is.
-                        contain_desired_network = true;
-                        continue;
-                    }
-                }
-                tracing::info!("Detaching balancer from network {}", private_net_id);
-                api::detach_from_network(&self.hcloud_config, hcloud_balancer.id, private_net_id)
-                    .await?;
+        
+        let is_attached = self.detach_unwanted_networks(hcloud_balancer, desired_network).await?;
+        
+        if !is_attached {
+            if let Some(network_id) = desired_network {
+                tracing::info!("Attaching balancer to network {}", network_id);
+                api::attach_to_network(
+                    &self.hcloud_config,
+                    hcloud_balancer.id,
+                    network_id,
+                    self.private_ip.clone(),
+                )
+                .await?;
             }
         }
-        if !contain_desired_network {
-            let Some(network_id) = desired_network else {
-                return Ok(());
-            };
-            tracing::info!("Attaching balancer to network {}", network_id);
-            api::attach_to_network(
-                &self.hcloud_config,
-                hcloud_balancer.id,
-                network_id,
-                self.private_ip.clone(),
-            )
-            .await?;
-        }
         Ok(())
+    }
+
+    async fn detach_unwanted_networks(
+        &self,
+        hcloud_balancer: &hcloud::models::LoadBalancer,
+        desired_network: Option<i64>,
+    ) -> RobotLBResult<bool> {
+        let mut is_attached = false;
+        
+        for private_net in &hcloud_balancer.private_net {
+            let Some(private_net_id) = private_net.network else {
+                continue;
+            };
+            
+            if desired_network == Some(private_net_id) 
+                && private_net.ip.as_ref().is_some_and(|ip| self.matches_desired_ip(ip)) {
+                is_attached = true;
+                continue;
+            }
+            
+            tracing::info!("Detaching balancer from network {}", private_net_id);
+            api::detach_from_network(&self.hcloud_config, hcloud_balancer.id, private_net_id)
+                .await?;
+        }
+        
+        Ok(is_attached)
+    }
+
+    fn matches_desired_ip(&self, current_ip: &str) -> bool {
+        self.private_ip.as_ref().is_none_or(|desired_ip| desired_ip == current_ip)
     }
 
     /// Cleanup the load balancer.
