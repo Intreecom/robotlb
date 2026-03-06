@@ -1,14 +1,22 @@
+//! Metrics collection for the robotlb operator.
+//!
+//! This module provides Prometheus-compatible metrics for monitoring
+//! the operator's performance and behavior.
+
 use std::{sync::Arc, time::Instant};
 
 use opentelemetry::{
-    KeyValue,
     metrics::{Counter, Gauge, Histogram, Meter},
+    KeyValue,
 };
 use tokio::time::Instant as TokioInstant;
 use tracing::debug;
 
 use crate::consts;
 
+/// Metrics collector for the robotlb operator.
+///
+/// Tracks reconciliation operations, failures, duration, and API interactions.
 pub struct Metrics {
     controller: String,
     reconcile_operations: Counter<u64>,
@@ -21,6 +29,7 @@ pub struct Metrics {
 }
 
 impl Metrics {
+    /// Create a new metrics instance with the given OpenTelemetry meter.
     pub fn new(meter: &Meter) -> Self {
         debug!("Initializing robotlb metrics");
 
@@ -120,6 +129,9 @@ impl Metrics {
     }
 }
 
+/// RAII guard for measuring reconcile duration.
+///
+/// Automatically records the duration when dropped.
 pub struct ReconcileMeasurer {
     start: TokioInstant,
     controller: String,
@@ -136,6 +148,9 @@ impl Drop for ReconcileMeasurer {
     }
 }
 
+/// Timer for tracking reconcile operation success/failure.
+///
+/// Records metrics on drop, including failure status.
 pub struct ReconcileTimer {
     metrics: Arc<Metrics>,
     start: Instant,
