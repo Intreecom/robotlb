@@ -7,7 +7,7 @@ use hcloud::models::{LoadBalancerAlgorithm, LoadBalancerService};
 
 /// Represents a service exposed by the load balancer.
 #[derive(Debug)]
-pub struct LBService {
+pub(crate) struct LBService {
     /// Port the load balancer listens on.
     pub listen_port: i32,
     /// Port on the target servers to forward traffic to.
@@ -15,7 +15,7 @@ pub struct LBService {
 }
 
 /// Load balancing algorithm types.
-pub enum LBAlgorithm {
+pub(crate) enum LBAlgorithm {
     /// Round-robin load balancing.
     RoundRobin,
     /// Least connections load balancing.
@@ -47,7 +47,7 @@ impl From<LBAlgorithm> for LoadBalancerAlgorithm {
 
 /// Parsed configuration for a load balancer.
 #[derive(Debug)]
-pub struct ParsedLoadBalancerConfig {
+pub(crate) struct ParsedLoadBalancerConfig {
     pub(crate) name: String,
     pub(crate) private_ip: Option<String>,
     pub(crate) balancer_type: String,
@@ -62,7 +62,7 @@ pub struct ParsedLoadBalancerConfig {
 
 /// Actions that can be performed on a load balancer service.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ServiceReconcileAction {
+pub(crate) enum ServiceReconcileAction {
     /// Update an existing service configuration.
     Update {
         listen_port: i32,
@@ -79,7 +79,7 @@ pub enum ServiceReconcileAction {
 
 /// Actions that can be performed on a load balancer target.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TargetReconcileAction {
+pub(crate) enum TargetReconcileAction {
     /// Remove a target from the load balancer.
     Remove { target_ip: String },
     /// Add a target to the load balancer.
@@ -88,7 +88,7 @@ pub enum TargetReconcileAction {
 
 /// Check if a service matches the desired configuration.
 #[must_use]
-pub fn service_matches_desired(
+pub(crate) fn service_matches_desired(
     service: &LoadBalancerService,
     destination_port: i32,
     check_interval: i32,
@@ -108,6 +108,6 @@ pub fn service_matches_desired(
 }
 
 /// Normalize an IP address by removing any CIDR suffix.
-pub fn normalize_ip(ip: &str) -> String {
+pub(crate) fn normalize_ip(ip: &str) -> String {
     ip.split('/').next().unwrap_or(ip).to_string()
 }
