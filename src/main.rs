@@ -53,6 +53,9 @@ pub mod metrics;
 pub mod otel_tracing;
 pub mod prometheus_exporter;
 
+#[cfg(test)]
+pub mod test_utils;
+
 /// Shared context for the operator.
 #[derive(Clone)]
 pub struct CurrentContext {
