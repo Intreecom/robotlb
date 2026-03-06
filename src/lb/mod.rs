@@ -27,9 +27,7 @@ use crate::{
 
 pub(crate) use api::{HcloudLoadBalancerApi, LiveHcloudLoadBalancerApi};
 pub(crate) use config::parse_load_balancer_config;
-pub(crate) use types::{
-    LBService, ServiceReconcileAction, TargetReconcileAction, normalize_ip, service_matches_desired,
-};
+use types::{ServiceReconcileAction, TargetReconcileAction, normalize_ip, service_matches_desired};
 
 /// Struct representing a load balancer.
 ///
@@ -419,17 +417,17 @@ impl LoadBalancer {
         
         let is_attached = self.detach_unwanted_networks(hcloud_balancer, desired_network).await?;
         
-        if !is_attached {
-            if let Some(network_id) = desired_network {
-                tracing::info!("Attaching balancer to network {}", network_id);
-                api::attach_to_network(
-                    &self.hcloud_config,
-                    hcloud_balancer.id,
-                    network_id,
-                    self.private_ip.clone(),
-                )
-                .await?;
-            }
+        if !is_attached
+            && let Some(network_id) = desired_network
+        {
+            tracing::info!("Attaching balancer to network {}", network_id);
+            api::attach_to_network(
+                &self.hcloud_config,
+                hcloud_balancer.id,
+                network_id,
+                self.private_ip.clone(),
+            )
+            .await?;
         }
         Ok(())
     }

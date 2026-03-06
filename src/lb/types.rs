@@ -5,17 +5,8 @@
 
 use hcloud::models::{LoadBalancerAlgorithm, LoadBalancerService};
 
-/// Represents a service exposed by the load balancer.
-#[derive(Debug)]
-pub(crate) struct LBService {
-    /// Port the load balancer listens on.
-    pub listen_port: i32,
-    /// Port on the target servers to forward traffic to.
-    pub target_port: i32,
-}
-
 /// Load balancing algorithm types.
-pub(crate) enum LBAlgorithm {
+pub(super) enum LBAlgorithm {
     /// Round-robin load balancing.
     RoundRobin,
     /// Least connections load balancing.
@@ -47,22 +38,23 @@ impl From<LBAlgorithm> for LoadBalancerAlgorithm {
 
 /// Parsed configuration for a load balancer.
 #[derive(Debug)]
+#[allow(clippy::redundant_pub_crate)]
 pub(crate) struct ParsedLoadBalancerConfig {
-    pub(crate) name: String,
-    pub(crate) private_ip: Option<String>,
-    pub(crate) balancer_type: String,
-    pub(crate) check_interval: i32,
-    pub(crate) timeout: i32,
-    pub(crate) retries: i32,
-    pub(crate) location: String,
-    pub(crate) proxy_mode: bool,
-    pub(crate) network_name: Option<String>,
-    pub(crate) algorithm: LoadBalancerAlgorithm,
+    pub(super) name: String,
+    pub(super) private_ip: Option<String>,
+    pub(super) balancer_type: String,
+    pub(super) check_interval: i32,
+    pub(super) timeout: i32,
+    pub(super) retries: i32,
+    pub(super) location: String,
+    pub(super) proxy_mode: bool,
+    pub(super) network_name: Option<String>,
+    pub(super) algorithm: LoadBalancerAlgorithm,
 }
 
 /// Actions that can be performed on a load balancer service.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum ServiceReconcileAction {
+pub(super) enum ServiceReconcileAction {
     /// Update an existing service configuration.
     Update {
         listen_port: i32,
@@ -79,7 +71,7 @@ pub(crate) enum ServiceReconcileAction {
 
 /// Actions that can be performed on a load balancer target.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum TargetReconcileAction {
+pub(super) enum TargetReconcileAction {
     /// Remove a target from the load balancer.
     Remove { target_ip: String },
     /// Add a target to the load balancer.
@@ -88,7 +80,7 @@ pub(crate) enum TargetReconcileAction {
 
 /// Check if a service matches the desired configuration.
 #[must_use]
-pub(crate) fn service_matches_desired(
+pub(super) fn service_matches_desired(
     service: &LoadBalancerService,
     destination_port: i32,
     check_interval: i32,
@@ -108,6 +100,6 @@ pub(crate) fn service_matches_desired(
 }
 
 /// Normalize an IP address by removing any CIDR suffix.
-pub(crate) fn normalize_ip(ip: &str) -> String {
+pub(super) fn normalize_ip(ip: &str) -> String {
     ip.split('/').next().unwrap_or(ip).to_string()
 }
