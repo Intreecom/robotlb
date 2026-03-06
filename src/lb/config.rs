@@ -30,26 +30,26 @@ pub fn parse_load_balancer_config(
     config: &OperatorConfig,
 ) -> RobotLBResult<ParsedLoadBalancerConfig> {
     let retries =
-        parse_annotation(svc, consts::LB_RETRIES_ANN_NAME)?.unwrap_or(config.default_lb_retries);
+        parse_annotation(svc, consts::LB_RETRIES_ANNOTATION)?.unwrap_or(config.default_lb_retries);
 
     let timeout =
-        parse_annotation(svc, consts::LB_TIMEOUT_ANN_NAME)?.unwrap_or(config.default_lb_timeout);
+        parse_annotation(svc, consts::LB_TIMEOUT_ANNOTATION)?.unwrap_or(config.default_lb_timeout);
 
-    let check_interval = parse_annotation(svc, consts::LB_CHECK_INTERVAL_ANN_NAME)?
+    let check_interval = parse_annotation(svc, consts::LB_CHECK_INTERVAL_ANNOTATION)?
         .unwrap_or(config.default_lb_interval);
 
-    let proxy_mode = parse_annotation(svc, consts::LB_PROXY_MODE_LABEL_NAME)?
+    let proxy_mode = parse_annotation(svc, consts::LB_PROXY_MODE_ANNOTATION)?
         .unwrap_or(config.default_lb_proxy_mode_enabled);
 
     let location = svc
         .annotations()
-        .get(consts::LB_LOCATION_LABEL_NAME)
+        .get(consts::LB_LOCATION_ANNOTATION)
         .cloned()
         .unwrap_or_else(|| config.default_lb_location.clone());
 
     let balancer_type = svc
         .annotations()
-        .get(consts::LB_BALANCER_TYPE_LABEL_NAME)
+        .get(consts::LB_BALANCER_TYPE_ANNOTATION)
         .cloned()
         .unwrap_or_else(|| config.default_balancer_type.clone());
 
@@ -57,19 +57,19 @@ pub fn parse_load_balancer_config(
 
     let network_name = svc
         .annotations()
-        .get(consts::LB_NETWORK_LABEL_NAME)
+        .get(consts::LB_NETWORK_ANNOTATION)
         .or(config.default_network.as_ref())
         .cloned();
 
     let name = svc
         .annotations()
-        .get(consts::LB_NAME_LABEL_NAME)
+        .get(consts::LB_NAME_ANNOTATION)
         .cloned()
         .unwrap_or_else(|| svc.name_any());
 
     let private_ip = svc
         .annotations()
-        .get(consts::LB_PRIVATE_IP_LABEL_NAME)
+        .get(consts::LB_PRIVATE_IP_ANNOTATION)
         .cloned();
 
     Ok(ParsedLoadBalancerConfig {
@@ -103,7 +103,7 @@ where
 /// Parse the algorithm annotation or fall back to default.
 fn parse_algorithm(svc: &Service, config: &OperatorConfig) -> RobotLBResult<LBAlgorithm> {
     svc.annotations()
-        .get(consts::LB_ALGORITHM_LABEL_NAME)
+        .get(consts::LB_ALGORITHM_ANNOTATION)
         .map(String::as_str)
         .or(Some(&config.default_lb_algorithm))
         .map(LBAlgorithm::from_str)
@@ -184,16 +184,16 @@ mod tests {
         let mut config = base_config();
         config.default_network = None;
         let svc = service_with_annotations([
-            (consts::LB_NAME_LABEL_NAME, "custom-lb"),
-            (consts::LB_RETRIES_ANN_NAME, "5"),
-            (consts::LB_TIMEOUT_ANN_NAME, "8"),
-            (consts::LB_CHECK_INTERVAL_ANN_NAME, "20"),
-            (consts::LB_PROXY_MODE_LABEL_NAME, "true"),
-            (consts::LB_LOCATION_LABEL_NAME, "nbg1"),
-            (consts::LB_BALANCER_TYPE_LABEL_NAME, "lb31"),
-            (consts::LB_ALGORITHM_LABEL_NAME, "round-robin"),
-            (consts::LB_NETWORK_LABEL_NAME, "private-net"),
-            (consts::LB_PRIVATE_IP_LABEL_NAME, "10.10.0.5"),
+            (consts::LB_NAME_ANNOTATION, "custom-lb"),
+            (consts::LB_RETRIES_ANNOTATION, "5"),
+            (consts::LB_TIMEOUT_ANNOTATION, "8"),
+            (consts::LB_CHECK_INTERVAL_ANNOTATION, "20"),
+            (consts::LB_PROXY_MODE_ANNOTATION, "true"),
+            (consts::LB_LOCATION_ANNOTATION, "nbg1"),
+            (consts::LB_BALANCER_TYPE_ANNOTATION, "lb31"),
+            (consts::LB_ALGORITHM_ANNOTATION, "round-robin"),
+            (consts::LB_NETWORK_ANNOTATION, "private-net"),
+            (consts::LB_PRIVATE_IP_ANNOTATION, "10.10.0.5"),
         ]);
 
         let parsed = parse_load_balancer_config(&svc, &config).expect("parse should succeed");
@@ -216,7 +216,7 @@ mod tests {
     #[test]
     fn returns_error_for_invalid_algorithm_annotation() {
         let config = base_config();
-        let svc = service_with_annotations([(consts::LB_ALGORITHM_LABEL_NAME, "weighted")]);
+        let svc = service_with_annotations([(consts::LB_ALGORITHM_ANNOTATION, "weighted")]);
 
         let result = parse_load_balancer_config(&svc, &config);
         assert!(matches!(result, Err(RobotLBError::UnknownLBAlgorithm)));

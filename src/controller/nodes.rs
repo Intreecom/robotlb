@@ -168,7 +168,7 @@ async fn get_nodes_by_selector(
 ) -> RobotLBResult<Vec<Node>> {
     let node_selector = svc
         .annotations()
-        .get(consts::LB_NODE_SELECTOR)
+        .get(consts::LB_NODE_SELECTOR_ANNOTATION)
         .map(String::as_str)
         .ok_or(RobotLBError::ServiceWithoutSelector)?;
     let label_filter = LabelFilter::from_str(node_selector)?;
