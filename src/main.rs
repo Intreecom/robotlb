@@ -22,7 +22,10 @@ use error::{RobotLBError, RobotLBResult};
 use futures::StreamExt;
 use hcloud::apis::configuration::Configuration as HCloudConfig;
 use k8s_openapi::{
-    api::core::v1::{Node, Pod, Service},
+    api::{
+        core::v1::{Node, Pod, Service},
+        discovery::v1::EndpointSlice,
+    },
     serde_json::json,
 };
 use kube::{
@@ -181,8 +184,16 @@ async fn get_nodes_dynamically(
             .unwrap_or_else(|| context.client.default_namespace()),
     );
 
-    let Some(pod_selector) = svc.spec.as_ref().and_then(|spec| spec.selector.clone()) else {
-        return Err(RobotLBError::ServiceWithoutSelector);
+    let Some(pod_selector) = svc
+        .spec
+        .as_ref()
+        .and_then(|spec| spec.selector.clone())
+        .filter(|s| !s.is_empty())
+    else {
+        tracing::info!(
+            "Service has no selector, falling back to EndpointSlice-based node discovery"
+        );
+        return get_nodes_from_endpointslices(svc, context).await;
     };
 
     let label_selector = pod_selector
@@ -203,6 +214,62 @@ async fn get_nodes_dynamically(
         .map(|pod| pod.spec.clone().unwrap_or_default().node_name)
         .flatten()
         .collect::<HashSet<_>>();
+
+    let nodes_api = kube::Api::<Node>::all(context.client.clone());
+    let nodes = nodes_api
+        .list(&ListParams::default())
+        .await?
+        .into_iter()
+        .filter(|node| target_nodes.contains(&node.name_any()))
+        .collect::<Vec<_>>();
+
+    Ok(nodes)
+}
+
+/// Get nodes from `EndpointSlice` resources associated with a Service.
+/// This method is used as a fallback when the Service has no selector,
+/// such as when `EndpointSlice` resources are managed by an external controller
+/// (e.g. kubevirt cloud-controller-manager).
+/// It discovers target nodes by reading the `nodeName` field from each endpoint.
+async fn get_nodes_from_endpointslices(
+    svc: &Arc<Service>,
+    context: &Arc<CurrentContext>,
+) -> RobotLBResult<Vec<Node>> {
+    let namespace = svc
+        .namespace()
+        .unwrap_or_else(|| context.client.default_namespace().to_string());
+    let eps_api = kube::Api::<EndpointSlice>::namespaced(context.client.clone(), &namespace);
+    let eps_list = eps_api
+        .list(&ListParams {
+            label_selector: Some(format!(
+                "kubernetes.io/service-name={}",
+                svc.name_any()
+            )),
+            ..Default::default()
+        })
+        .await?;
+
+    let target_nodes = eps_list
+        .into_iter()
+        .flat_map(|eps| eps.endpoints)
+        .filter(|ep| {
+            ep.conditions
+                .as_ref()
+                .and_then(|c| c.ready)
+                .unwrap_or(true)
+        })
+        .filter_map(|ep| ep.node_name)
+        .collect::<HashSet<_>>();
+
+    if target_nodes.is_empty() {
+        tracing::warn!("No ready endpoints found in EndpointSlices for service");
+        return Ok(vec![]);
+    }
+
+    tracing::info!(
+        "Discovered {} target node(s) from EndpointSlices",
+        target_nodes.len()
+    );
 
     let nodes_api = kube::Api::<Node>::all(context.client.clone());
     let nodes = nodes_api
