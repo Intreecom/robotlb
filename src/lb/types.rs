@@ -42,6 +42,7 @@ impl From<LBAlgorithm> for LoadBalancerAlgorithm {
 pub(crate) struct ParsedLoadBalancerConfig {
     pub(super) name: String,
     pub(super) private_ip: Option<String>,
+    pub(super) public_interface: bool,
     pub(super) balancer_type: String,
     pub(super) check_interval: i32,
     pub(super) timeout: i32,

@@ -43,6 +43,8 @@ pub struct LoadBalancer {
     pub targets: Vec<String>,
     /// Optional private IP for the load balancer.
     pub private_ip: Option<String>,
+    /// Whether the public interface should be enabled.
+    pub public_interface: bool,
 
     /// Health check interval in seconds.
     pub check_interval: i32,
@@ -84,6 +86,7 @@ impl LoadBalancer {
         Ok(Self {
             name: parsed.name,
             private_ip: parsed.private_ip,
+            public_interface: parsed.public_interface,
             balancer_type: parsed.balancer_type,
             check_interval: parsed.check_interval,
             timeout: parsed.timeout,
@@ -529,6 +532,7 @@ impl LoadBalancer {
             &self.location,
             &self.balancer_type,
             self.algorithm.clone(),
+            self.public_interface,
         )
         .await
     }
@@ -708,6 +712,7 @@ mod tests {
             services: HashMap::new(),
             targets: vec![],
             private_ip: None,
+            public_interface: true,
             check_interval: 15,
             timeout: 10,
             retries: 3,

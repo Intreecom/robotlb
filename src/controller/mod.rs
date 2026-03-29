@@ -158,7 +158,12 @@ pub async fn reconcile_load_balancer(
 
     let hcloud_lb = lb.reconcile().await?;
 
-    let ingress = build_ingress(&hcloud_lb, context.config.ipv6_ingress, lb.proxy_mode);
+    let ingress = build_ingress(
+        &hcloud_lb,
+        context.config.ipv6_ingress,
+        lb.proxy_mode,
+        lb.public_interface,
+    );
     patch_ingress_status(&svc, &context, ingress).await?;
 
     Ok(Action::requeue(Duration::from_secs(SUCCESS_REQUEUE_SECS)))

@@ -72,9 +72,21 @@ pub fn parse_load_balancer_config(
         .get(consts::LB_PRIVATE_IP_ANNOTATION)
         .cloned();
 
+    let public_interface =
+        parse_annotation(svc, consts::LB_PUBLIC_INTERFACE_ANNOTATION)?.unwrap_or(true);
+
+    if !public_interface && network_name.is_none() {
+        return Err(RobotLBError::Generic(format!(
+            "{} requires {} to be set when disabled",
+            consts::LB_PUBLIC_INTERFACE_ANNOTATION,
+            consts::LB_NETWORK_ANNOTATION
+        )));
+    }
+
     Ok(ParsedLoadBalancerConfig {
         name,
         private_ip,
+        public_interface,
         balancer_type,
         check_interval,
         timeout,
@@ -177,6 +189,7 @@ mod tests {
         assert_eq!(parsed.balancer_type, "lb11");
         assert_eq!(parsed.network_name.as_deref(), Some("default-net"));
         assert!(!parsed.proxy_mode);
+        assert!(parsed.public_interface);
     }
 
     #[test]
@@ -194,6 +207,7 @@ mod tests {
             (consts::LB_ALGORITHM_ANNOTATION, "round-robin"),
             (consts::LB_NETWORK_ANNOTATION, "private-net"),
             (consts::LB_PRIVATE_IP_ANNOTATION, "10.10.0.5"),
+            (consts::LB_PUBLIC_INTERFACE_ANNOTATION, "false"),
         ]);
 
         let parsed = parse_load_balancer_config(&svc, &config).expect("parse should succeed");
@@ -207,10 +221,22 @@ mod tests {
         assert_eq!(parsed.network_name.as_deref(), Some("private-net"));
         assert_eq!(parsed.private_ip.as_deref(), Some("10.10.0.5"));
         assert!(parsed.proxy_mode);
+        assert!(!parsed.public_interface);
         assert_eq!(
             parsed.algorithm.r#type,
             hcloud::models::load_balancer_algorithm::Type::RoundRobin
         );
+    }
+
+    #[test]
+    fn rejects_private_only_load_balancer_without_network() {
+        let mut config = base_config();
+        config.default_network = None;
+        let svc = service_with_annotations([(consts::LB_PUBLIC_INTERFACE_ANNOTATION, "false")]);
+
+        let result = parse_load_balancer_config(&svc, &config);
+
+        assert!(matches!(result, Err(RobotLBError::Generic(_))));
     }
 
     #[test]

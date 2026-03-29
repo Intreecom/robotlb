@@ -215,6 +215,7 @@ pub async fn create_load_balancer(
     location: &str,
     balancer_type: &str,
     algorithm: LoadBalancerAlgorithm,
+    public_interface: bool,
 ) -> RobotLBResult<hcloud::models::LoadBalancer> {
     let response = hcloud::apis::load_balancers_api::create_load_balancer(
         hcloud_config,
@@ -227,7 +228,7 @@ pub async fn create_load_balancer(
                 name: name.to_string(),
                 network: None,
                 network_zone: None,
-                public_interface: Some(true),
+                public_interface: Some(public_interface),
                 services: Some(vec![]),
                 targets: Some(vec![]),
             },
