@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0](https://github.com/forkline/robotlb/tree/0.6.0) - 2026-03-29
+
+### Added
+
+- Add Helm unittests for dashboard and prometheus rules ([69a142d](https://github.com/forkline/robotlb/commit/69a142d604e1777382f54570fde534cfa16ef5df))
+- Rework dashboard with template variables and improved layout ([baee4af](https://github.com/forkline/robotlb/commit/baee4afb67eaa7517d1479fbe26f2ad3a62c2aa9))
+- Support private-only load balancer ingress ([4033706](https://github.com/forkline/robotlb/commit/4033706c9f77ea678d1218355be6ed14a1a86c84))
+- Add release skill for opencode ([ed9d63e](https://github.com/forkline/robotlb/commit/ed9d63eec2fd88eeb87c9c169ded0adab2082e50))
+
+### Fixed
+
+- Adjust reconcile duration histogram buckets for millisecond-level precision ([f34a318](https://github.com/forkline/robotlb/commit/f34a3181e8726b3028ac80cc192c7d47996393ce))
+- Reduce histogram buckets to essential ranges ([f1f1aed](https://github.com/forkline/robotlb/commit/f1f1aedd1396056f2d0bf21f196fe65aba7bfd41))
+- Correct import ordering for cargo fmt ([0cf09b8](https://github.com/forkline/robotlb/commit/0cf09b85ab50596ebd0a50d58621654c4eb0f48e))
+- Move dashboard to templates directory ([1ee00e0](https://github.com/forkline/robotlb/commit/1ee00e0e6c6f8ae1ed0e5914aff77a75ab83d001))
+- Add trailing newlines to test files ([8c066cf](https://github.com/forkline/robotlb/commit/8c066cf7a19c795d9dc5f894547ee3be3cc584a9))
+- Use [\s\S]* in regex to match across newlines in JSON ([64c8720](https://github.com/forkline/robotlb/commit/64c872021cdfa4e5cc23cd9b5c27046e6776a192))
+- Resolve pre-commit hook failures ([81293b6](https://github.com/forkline/robotlb/commit/81293b67f2c578ccfa0596e1fde5e1d7c6278add))
+
+### Documentation
+
+- Add documentation for metrics module ([10e9c42](https://github.com/forkline/robotlb/commit/10e9c42c5e7522c91dcb3b420726bac335fc523b))
+
+### Refactor
+
+- Extract shared test utilities to eliminate duplication ([dddd245](https://github.com/forkline/robotlb/commit/dddd245948295a3691b27fcfe0a75345b72c0fa1))
+- Standardize annotation constant naming ([5a607f5](https://github.com/forkline/robotlb/commit/5a607f5ae10989b292b8838ff2ae9b4e949730c6))
+- Simplify reconcile_network logic ([b2a8b46](https://github.com/forkline/robotlb/commit/b2a8b468f213762c8b4c4eb54094c74b92d87d78))
+- Tighten visibility of internal types ([966c0f1](https://github.com/forkline/robotlb/commit/966c0f165df076b417adeb71dd2542a560c0953d))
+- Fix visibility and clippy warnings ([146fc26](https://github.com/forkline/robotlb/commit/146fc268f24a9c5d396fa8bcb7dd28a568379b1c))
+
+### Styling
+
+- Add missing newline at end of dashboard.yaml ([09cc4dc](https://github.com/forkline/robotlb/commit/09cc4dcaeb78275d03cc6f17e5f7f79de51d31ea))
+
 ## [0.5.0](https://github.com/forkline/robotlb/tree/0.5.0) - 2026-03-04
 
 ### Added
