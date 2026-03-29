@@ -23,6 +23,8 @@ pub const LB_PROXY_MODE_ANNOTATION: &str = "robotlb/lb-proxy-mode";
 pub const LB_NETWORK_ANNOTATION: &str = "robotlb/lb-network";
 /// Annotation key for private IP mode.
 pub const LB_PRIVATE_IP_ANNOTATION: &str = "robotlb/lb-private-ip";
+/// Annotation key for enabling the public interface.
+pub const LB_PUBLIC_INTERFACE_ANNOTATION: &str = "robotlb/lb-public-interface";
 
 /// Annotation key for load balancer location.
 pub const LB_LOCATION_ANNOTATION: &str = "robotlb/lb-location";

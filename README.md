@@ -38,9 +38,9 @@ After the chart is installed, you should be able to create `LoadBalancer` servic
 
 ### High availability
 
-`robotlb` supports safe multi-replica deployment via Kubernetes Lease-based leader election.
-Run at least 2 replicas and use pod anti-affinity so only one pod is active leader while the
-other is standby.
+`robotlb` supports safe multi-replica deployment via Kubernetes Lease-based leader election. Run at
+least 2 replicas and use pod anti-affinity so only one pod is active leader while the other is
+standby.
 
 Example Helm values:
 
@@ -140,6 +140,9 @@ metadata:
     # Requests specific IP address for the load balancer in the private network. If not specified,
     # a random one is given. This parameter does nothing in case if network is not specified.
     robotlb/lb-private-ip: "10.10.10.10"
+    # Whether to keep the public interface enabled. Set this to false for an internal-only load
+    # balancer. In that case, the private IP is announced in the Service status.
+    robotlb/lb-public-interface: "false"
     # Node selector for the loadbalancer. This is only required if ROBOTLB_DYNAMIC_NODE_SELECTOR
     # is set to false. If not specified then, all nodes will be selected as LB targets by default.
     # This property helps you filter out nodes.
@@ -164,9 +167,9 @@ metadata:
     # Location of the load balancer. This expects the code of one of Hetzner's available locations.
     robotlb/lb-location: "hel1"
     # Balancing algorithm. Can be either
-    # * least-connection
+    # * least-connections
     # * round-robin
-    robotlb/lb-algorithm: "least-connection"
+    robotlb/lb-algorithm: "least-connections"
     # Type of balancer.
     robotlb/balancer-type: "lb11"
 spec:

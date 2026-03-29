@@ -470,6 +470,7 @@ controller:
     type: LoadBalancer
     annotations:
       robotlb/lb-network: "<name of your cloud network>"
+      robotlb/lb-public-interface: "false"
       robotlb/balancer-type: "lb11"
       robotlb/lb-algorithm: "least-connections"
     externalTrafficPolicy: "Local"
