@@ -241,10 +241,7 @@ async fn get_nodes_from_endpointslices(
     let eps_api = kube::Api::<EndpointSlice>::namespaced(context.client.clone(), &namespace);
     let eps_list = eps_api
         .list(&ListParams {
-            label_selector: Some(format!(
-                "kubernetes.io/service-name={}",
-                svc.name_any()
-            )),
+            label_selector: Some(format!("kubernetes.io/service-name={}", svc.name_any())),
             ..Default::default()
         })
         .await?;
@@ -252,12 +249,7 @@ async fn get_nodes_from_endpointslices(
     let target_nodes = eps_list
         .into_iter()
         .flat_map(|eps| eps.endpoints)
-        .filter(|ep| {
-            ep.conditions
-                .as_ref()
-                .and_then(|c| c.ready)
-                .unwrap_or(true)
-        })
+        .filter(|ep| ep.conditions.as_ref().and_then(|c| c.ready).unwrap_or(true))
         .filter_map(|ep| ep.node_name)
         .collect::<HashSet<_>>();
 
